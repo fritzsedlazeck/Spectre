@@ -6,21 +6,26 @@
 
 Setup a conda environment for Spectre (copy and paste the following commands)
 ```bash
-conda create -n spectre python=3.8.5
+conda create -n spectre python=3.8.5 pysam==0.21.0 numpy==1.24.3 pandas==2.0.1 matplotlib==3.7.1 scipy==1.10.1 -y
+conda activate spectre
+```
+Alternatively, you can use pip for installing the packages stored in the requirements txt
+
+```bash
+conda create -n spectre python=3.8.5 pip -y
 conda activate spectre
 pip install -r requirements.txt
 ```
-
 or install everything manually (check for package version in the requirements.txt file)
 
-|Program|Conda|
-|-------|-----|
-| python3 |conda install python=3.8.5|
-| pysam |conda install -c bioconda pysam|
-| pandas|conda install -c anaconda pandas|
-| numpy|conda install -c anaconda numpy|
-| scipy|conda install -c anaconda scipy|
-| matplotlib|conda install -c anaconda matplotlib|
+|Program| Conda                               |
+|-------|-------------------------------------|
+| python3 | conda install python=3.8.5          |
+| pysam | conda install -c bioconda pysam=0.21.0     |
+| pandas| conda install -c anaconda pandas==2.0.1    |
+| numpy| conda install -c anaconda numpy==1.24.3     |
+| scipy| conda install -c anaconda scipy==1.10.1     |
+| matplotlib| conda install -c anaconda matplotlib==3.7.1 |
 
 
 ## How to run
@@ -44,17 +49,6 @@ spectre.py CNVcaller \
   --reference reference.fasta.gz \
   --snv sampleid.vcf.gz
 ```
-### Running Mosdepth
-```bash
-mosdepth \
-    --by 1000 \
-    --threads 8 \
-    --no-per-base \
-    coverage \
-    input_file.bam
-```
-
-
 ### Run Spectre with multiple samples
 Run Spectre with multiple samples:
 >INFO: This will start the population mode automatically.
@@ -72,7 +66,7 @@ spectre.py CNVcaller \
 ### Population mode
 Run Spectre in population mode with two or more samples:
 >INFO: Spectre produces an intermediate file (.spc) which contains all calculated CNVs from a given samples. They are 
-> located in the output folder of given sample. VCF files contain only the final CNV candidates.
+> located in the output folder of given sample.
 
 ```bash
 spectre.py population \
