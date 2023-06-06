@@ -44,6 +44,17 @@ spectre.py CNVcaller \
   --reference reference.fasta.gz \
   --snv sampleid.vcf.gz
 ```
+### Running Mosdepth
+```bash
+mosdepth \
+    --by 1000 \
+    --threads 8 \
+    --no-per-base \
+    coverage \
+    input_file.bam
+```
+
+
 ### Run Spectre with multiple samples
 Run Spectre with multiple samples:
 >INFO: This will start the population mode automatically.
