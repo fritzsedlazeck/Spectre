@@ -1,0 +1,6 @@
+chrY	1	226351	telomere++
+chrY	1949345	2137488	scaffold
+chrY	9046914	11674123	scaffold++
+chrY	20207793	20257793	scaffold
+chrY	21739542	21805281	contig++
+chrY	26673214	57227415	heterochromatin+telomere

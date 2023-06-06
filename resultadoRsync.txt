@@ -1,0 +1,26 @@
+sending incremental file list
+./
+how_to_use.sh
+spectre.py
+spectreCNV.py
+analysis/
+analysis/af_stats.py
+analysis/analysis.py
+analysis/call_cnv_AF.py
+analysis/call_cnv_coverage.py
+analysis/cnv_candidate.py
+analysis/cnv_metrics.py
+bedtovcf/
+bedtovcf/Obj/
+compare/
+data/
+plots/
+util/
+util/mosdepthReader.py
+util/outputWriter.py
+util/vcf_parser.py
+util/metadata/
+vcfmerge/
+
+sent 13,249 bytes  received 1,086 bytes  4,095.71 bytes/sec
+total size is 141,818  speedup is 9.89
