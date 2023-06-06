@@ -498,7 +498,7 @@ class CNVAnalysis(object):
                     "genome_var": np.var(self.cnv_metrics.df_coverage_candidate_no_excl_zone_random_samples['coverage'])
                 }
             }
-        output_path = intermediate_output_writer.write_intermediate_file(analysis_dict, f"cnvs_{self.sample_id}")
+        output_path = intermediate_output_writer.write_intermediate_file(analysis_dict, f"{self.sample_id}")
         self.intermediate_candidates_file_location = output_path
         return output_path
 
