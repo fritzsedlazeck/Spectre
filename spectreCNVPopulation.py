@@ -4,7 +4,6 @@ import logging as logger
 import traceback
 import json
 from util.outputWriter import VCFOutput
-from util.vcf_parser import VCFtoCandidate
 from analysis.cnv_candidate import CNVCandidate
 
 
@@ -21,8 +20,8 @@ class SpectrePopulation(object):
 
     def merge_genome_info(self, new_genome_info: dict) -> None:
         """
-        Merging genome information incase different genomic information is stored in the .spc files or used with
-        the vcf files. This ensures the correct metadata information in the resulting population .vcf file.
+        Merging genome information incase different genomic information is stored in the .spc files.
+         This ensures the correct metadata information in the resulting population output VCF.
         :param new_genome_info: dict of genome information
         :return: None
         """
@@ -41,16 +40,14 @@ class SpectrePopulation(object):
     def load_files(self, files: list) -> None:
         """
         Determination of loading process for the candidate generation.
-        :param files: list of paths to the .spc or .vcf files
+        :param files: list of paths to the .spc
         :return: None
         """
 
         for file in files:
             try:
                 if os.path.exists(file):
-                    if str(file).__contains__(".vcf") or str(file).__contains__(".vcf.gz"):
-                        self.load_final_candidates_from_intermediate_file_vcf(file)
-                    elif str(file).__contains__(".spc") or str(file).__contains__(".spc.gz"):
+                    if str(file).__contains__(".spc") or str(file).__contains__(".spc.gz"):
                         self.load_candidates_from_intermediate_file_spc(file)
                 else:
                     raise
@@ -115,27 +112,6 @@ class SpectrePopulation(object):
                 self.raw_candidates[filename] = dict()
             self.raw_candidates[filename] = self.convert_dict_to_candidate_list(filename, candidate_dict['raw_cnvs'])
         pass
-
-    def __load_vcf_file(self, vcf_file) -> dict:
-        """
-        Starting the loading VCF loading to candidate process
-        :param vcf_file: path to VCF file
-        :return: candidate structure
-        """
-        vcf_parser = VCFtoCandidate()
-        candidates = vcf_parser.vcf_to_candidates(vcf_file)
-        return candidates
-
-    def load_final_candidates_from_intermediate_file_vcf(self, vcf_file: str) -> None:
-        """
-        Start the process of loading and transforming a VCF file to a Spectre candidate list. The list is assigned to
-        the final canditates
-        :param vcf_file: path to VCF file
-        :return: None
-        """
-        # for vcf_file in vcf_files:
-        filename = os.path.basename(vcf_file).split(".vcf")[0]
-        self.final_candidates[filename] = self.__load_vcf_file(vcf_file)
 
     def cnv_call_population(self) -> None:
         """
