@@ -41,7 +41,7 @@ Optional
 
 
 ```bash
-spectre.py CNVcaller \
+spectre.py CNVCaller \
   --bin-size 1000 \
   --coverage mosdepth/sampleid/ \
   --sample-id sampleid \
@@ -54,7 +54,7 @@ Run Spectre with multiple samples:
 >INFO: This will start the population mode automatically.
 
 ```bash
-spectre.py CNVcaller \
+spectre.py CNVCaller \
   --bin-size 1000 \
   --coverage mosdepth/sampleid-1/ mosdepth/sampleid-1/ \
   --sample-id sampleid-1 sampleid-2 \
