@@ -388,7 +388,7 @@ def get_arguments():
                                       help='..., default = 2')
     subparser_cnv_caller.add_argument('-n', '--n-size', type=int, required=False, dest='n_size', default=5,
                                       help='..., default = 5')
-    subparser_cnv_caller.add_argument('-mcl', '--min-cnv-len', type=int, required=False, dest='min_cnv_len', default=5,
+    subparser_cnv_caller.add_argument('-mcl', '--min-cnv-len', type=int, required=False, dest='min_cnv_len', default=1000000,
                                       help='..., default = 1000000')
     subparser_cnv_caller.add_argument('-t', '--threads', type=int, required=False, dest='threads', default=1,
                                       help='..., default = 1')
