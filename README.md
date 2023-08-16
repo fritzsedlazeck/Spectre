@@ -56,7 +56,7 @@ Run Spectre with multiple samples:
 ```bash
 spectre.py CNVCaller \
   --bin-size 1000 \
-  --coverage mosdepth/sampleid-1/ mosdepth/sampleid-1/ \
+  --coverage mosdepth/sampleid-1/ mosdepth/sampleid-2/ \
   --sample-id sampleid-1 sampleid-2 \
   --output-dir sampleid_output_directory_path/ \
   --reference reference.fasta.gz \
