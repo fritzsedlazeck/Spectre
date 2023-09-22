@@ -66,7 +66,7 @@ class SpectreCNV:
         self.logger.info(f'Spectre calculating for: {str(coverage_dir)} and bin size: {self.bin_size}')
         # input coverage
         [coverage_file, cov_summary_file] = self.coverage_dir_files(coverage_dir)
-        self.mosdepth_data = util.mosdepthReader.MosdepthReader(coverage_file, cov_summary_file)
+        self.mosdepth_data = spectre.util.mosdepthReader.MosdepthReader(coverage_file, cov_summary_file)
         self.mosdepth_data.summary_data()
         # output bed dir/file
         self.out_bed = os.path.join(os.path.join(self.out_dir, f'{self.sample_id}_cnv.bed'))
@@ -78,7 +78,7 @@ class SpectreCNV:
         result = {}
         self.logger.info(f"Spectre calculating population sample for: {str(coverage_dir)} and bin size {self.bin_size}")
         [coverage_file, cov_summary_file] = self.coverage_dir_files(coverage_dir)
-        result["mosdepth_data"] = util.mosdepthReader.MosdepthReader(coverage_file, cov_summary_file)
+        result["mosdepth_data"] = spectre.util.mosdepthReader.MosdepthReader(coverage_file, cov_summary_file)
         result["mosdepth_data"].summary_data()  # calculate summary
         return result
 
