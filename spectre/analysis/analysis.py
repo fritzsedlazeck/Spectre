@@ -4,18 +4,18 @@ import pysam
 import numpy as np
 import pandas as pd
 import logging as logger
-import util.outputWriter
-import util.vcf_parser as vcf
-from util.OSUtil import OSUtil as OSUt
-from util.dataAnalyzer import NormaldataAnalyser as NorAn
-from util.cnv_id import CNV_ID
-from plots.plot import CNVPlot
-from plots.plot import CoveragePlot
-from analysis.coverage_stats import CoverageStatistics
-from analysis.coverage_stats import CoverageData
-from analysis.call_cnv_coverage import CNVCall
-from analysis.call_cnv_AF import CNVCall as CNVAnalysisSNP
-from analysis.cnv_metrics import CNVMetrics
+import spectre.util.outputWriter
+import spectre.util.vcf_parser as vcf
+from spectre.util.OSUtil import OSUtil as OSUt
+from spectre.util.dataAnalyzer import NormaldataAnalyser as NorAn
+from spectre.util.cnv_id import CNV_ID
+from spectre.plots.plot import CNVPlot
+from spectre.plots.plot import CoveragePlot
+from spectre.analysis.coverage_stats import CoverageStatistics
+from spectre.analysis.coverage_stats import CoverageData
+from spectre.analysis.call_cnv_coverage import CNVCall
+from spectre.analysis.call_cnv_AF import CNVCall as CNVAnalysisSNP
+from spectre.analysis.cnv_metrics import CNVMetrics
 
 
 class CNVAnalysis(object):
