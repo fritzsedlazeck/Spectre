@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import argparse
 import sys
-import spectreCNV
-import spectreCNVPopulation
+import spectre.spectreCNV
+import spectre.spectreCNVPopulation
 import os
 import pysam
 import logging as logger
-from util.metadata.metadataCollector import FastaRef
+from spectre.util.metadata.metadataCollector import FastaRef
 from multiprocessing import Pool
 
 

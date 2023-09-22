@@ -1,7 +1,7 @@
 import os
 import logging as logger
-import util.mosdepthReader
-from analysis.analysis import CNVAnalysis
+import spectre.util.mosdepthReader
+from spectre.analysis.analysis import CNVAnalysis
 
 
 class SpectreCNV:
