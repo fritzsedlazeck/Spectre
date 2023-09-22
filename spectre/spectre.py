@@ -108,7 +108,7 @@ class SpectrePopulationMode(object):
 
 
 def outside_spectre_worker(si: dict):
-    worker = spectreCNV.SpectreCNV(coverage_dir=si["coverage_dir"], bin_size=si["bin_size"],
+    worker = spectre.spectreCNV.SpectreCNV(coverage_dir=si["coverage_dir"], bin_size=si["bin_size"],
                                    out_dir=si["out_dir"], metadata_file_fasta=si["metadata_file_fasta"],
                                    genome_info=si["genome_info"], sample_id=si["sample_id"],
                                    snv_file_vcf=si["snv_file_vcf"], only_chr_list=si["only_chr_list"],
@@ -287,7 +287,7 @@ class Spectre:
                 os.makedirs(debug_dir)
 
         # Population mode setup
-        __spectre_population_worker = spectreCNVPopulation.SpectrePopulation(sample_id=sample_ids,
+        __spectre_population_worker = spectre.spectreCNVPopulation.SpectrePopulation(sample_id=sample_ids,
                                                                              output_dir=output_dir,
                                                                              genome_info=self.genome)
         __spectre_population_worker.load_files(population_paths)  # Loading files for population mode
