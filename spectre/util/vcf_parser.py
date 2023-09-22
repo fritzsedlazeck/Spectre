@@ -4,7 +4,7 @@ import logging as logger
 import os
 import pysam
 import gzip
-from analysis.cnv_candidate import CNVCandidate
+from spectre.analysis.cnv_candidate import CNVCandidate
 
 
 class VCFSNVParser(object):
