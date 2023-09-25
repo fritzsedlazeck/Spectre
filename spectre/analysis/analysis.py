@@ -408,12 +408,12 @@ class CNVAnalysis(object):
         else:
             output_bed = os.path.join(os.path.join(self.output_directory, f'{method}{self.sample_id}.bed'))
 
-        bed_output = util.outputWriter.BedOutput(output_bed)
+        bed_output = spectre.util.outputWriter.BedOutput(output_bed)
         bed_output.make_bed(self.genome_analysis.keys(), self.cnv_calls_list)
 
     def cnv_result_vcf(self, method=""):
         output_vcf = os.path.join(os.path.join(self.output_directory, f'{method}{self.sample_id}.vcf'))
-        vcf_output = util.outputWriter.VCFOutput(output_vcf, self.genome_info)
+        vcf_output = spectre.util.outputWriter.VCFOutput(output_vcf, self.genome_info)
         vcf_output.make_vcf(self.genome_analysis.keys(), self.cnv_calls_list, self.sample_id)
 
     # Plots
@@ -473,7 +473,7 @@ class CNVAnalysis(object):
         :return:
         """
 
-        intermediate_output_writer = util.outputWriter.IntermediateFile(self.output_directory)
+        intermediate_output_writer = spectre.util.outputWriter.IntermediateFile(self.output_directory)
         #genome_info = intermediate_output_writer.convert_candidates_to_dictionary(self.genome_info)
         cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(self.cnv_calls_list)
         raw_cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(self.raw_cnv_calls_list)
