@@ -1,5 +1,5 @@
 import numpy as np
-from analysis.cnv_candidate import CNVCandidate
+from spectre.analysis.cnv_candidate import CNVCandidate
 import pandas as pd
 import logging as logger
 
