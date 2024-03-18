@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='spectre',
+    name='spectre-cnv',
     version='0.2.0',
     packages=find_packages(),
     url='https://github.com/fritzsedlazeck/Spectre',
