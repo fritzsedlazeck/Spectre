@@ -1,4 +1,5 @@
-import logging as logger
+import logging
+from spectre.util import logger
 import matplotlib.pyplot as plot_engine
 from matplotlib import gridspec
 import numpy as np
@@ -6,8 +7,8 @@ import numpy as np
 
 class CoveragePlot:
     def __init__(self, as_dev=False):
-        logger.basicConfig(level=logger.DEBUG) if as_dev else logger.basicConfig(level=logger.INFO)
-        self.logger = logger
+        logging.getLogger('matplotlib.font_manager').disabled = True
+        self.logger = logger.setup_log(__name__, as_dev)
         # the plot
         self.figure = plot_engine.figure(figsize=(8, 4))
         gs = gridspec.GridSpec(1, 1)
@@ -33,8 +34,7 @@ class CoveragePlot:
 
 class CNVPlot:
     def __init__(self, as_dev=False):
-        logger.basicConfig(level=logger.DEBUG) if as_dev else logger.basicConfig(level=logger.INFO)
-        self.logger = logger
+        self.logger = logger.setup_log(__name__, as_dev)
         # the plot
         self.figure = plot_engine.figure(figsize=(8, 4))
         gs = gridspec.GridSpec(2, 1, height_ratios=[5, 1])
@@ -72,7 +72,7 @@ class CNVPlot:
                 cnv_color = self.cnv_color[cnv.type]
                 self.candidates_plot.plot(np.array([start, end]), np.array([0, 0]), linewidth='5', color=cnv_color)
         # save and close
-        self.main_plot.plot(np.array([1, stats.chromosome_len]), np.array([stats.median, stats.median]),
+        self.main_plot.plot(np.array([1, stats.chromosome_len]), np.array([stats.average, stats.average]),
                             linewidth='1', color="#000000")
         if bounds is not None:
             [upperb, lowerb] = bounds if len(bounds) == 2 else [np.NaN, np.NaN]
@@ -81,6 +81,6 @@ class CNVPlot:
             self.main_plot.plot(np.array([1, stats.chromosome_len]), np.array([upperb, upperb]),
                                 linewidth='1', color="#dd3497")
         self.figure.suptitle(f'{self.file_prefix} chromosome: {current_chromosome}')
-        self.figure.savefig(f'{self.output_directory}/plot-coverage-{self.file_prefix}-{current_chromosome}.png', dpi=300)
-        self.logger.info(f'Plot saved: plot-coverage-{self.file_prefix}-{current_chromosome}.png')
+        self.figure.savefig(f'{self.output_directory}/debug/{self.file_prefix}_plot_cnv_{current_chromosome}.png', dpi=300)
+        self.logger.info(f'Plot saved: debug/{self.file_prefix}_plot_cnv_{current_chromosome}.png')
         self.figure.clf()

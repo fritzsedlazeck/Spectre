@@ -4,67 +4,63 @@ import pandas as pd
 import hashlib
 import random
 from scipy.stats import ks_2samp, norm
-import logging as logger
+from spectre.util import logger
 
 
 class CNVMetrics(object):
-    def __init__(self, genome_analysis, exclusion_zones, cnv_calls=None,
+    def __init__(self, coverage_analysis, exclusion_zones, cnv_calls=None,
                  hashname: str = "mock_dataname_of_coverage.csv",ploidy:float=2.0,
-                 output_dir: str = "", as_dev: bool = False, debug_dir=""):
-        self.genome_analysis = genome_analysis
+                 output_dir: str = "", is_cancer:bool =False, as_dev: bool = False, debug_dir=""):
+        self.as_dev = as_dev
+        self.logger = logger.setup_log(__name__, self.as_dev)
+        self.coverage_analysis = coverage_analysis
         self.cnv_calls = cnv_calls
         self.hashname = hashname
         self.ploidy = ploidy
+        self.is_cancer = is_cancer
         self.output_dir = output_dir
-        self.as_dev = as_dev
-        logger.basicConfig(level=logger.DEBUG) if as_dev else logger.basicConfig(level=logger.INFO)
-        self.logger = logger
         # conversion
-        self.df_mosdepth_coverage = self.__convert_genome_analysis_to_coverage_dataframe(genome_analysis)
-        self.blacklist_exclusions = self.__convert_blacklist_exclusion_zone(exclusion_zones)
-        # if cnv_calls:  # check if cnv_calls is emtpy
-        #    self.cnv_exclusion = self.__convert_cnv_calls_to_exclusions(cnv_calls)
-        #    self.blacklist_cnv_exclusion = self.__merge_dict_with_lists_as_value(self.blacklist_exclusions,
-        #                                                                         self.cnv_exclusion)
+        self.df_mosdepth_coverage = None
+        self.__convert_coverage_analysis_to_coverage_dataframe()
+        self.blacklist_exclusions = None
+        self.__convert_blacklist_exclusion_zone(exclusion_zones)
         self.__prepare_cnv_evaluation()
-
-        # calculate borders
-        self.del_border, self.dup_border = self.calculate_del_dup_borders(1.0, 1.0, self.ploidy)
+        self.cnv_exclusion = None
+        # calculate threholds for deletion and duplication
+        self.del_threshold, self.dup_threshold = None, None
+        self.strict_del_threshold, self.strict_dup_threshold = None, None
         self.debug_dir = debug_dir
 
-    def __convert_genome_analysis_to_coverage_dataframe(self, genome_analysis):
+    def __convert_coverage_analysis_to_coverage_dataframe(self):
         """
-        Convert the standard Spectre genome_analysis into a pandas dataframe, using the minimal required fields
+        Convert the standard Spectre coverage_analysis into a pandas dataframe, using the minimal required fields
         to evaluate the CNV calls.
-        :param genome_analysis: standard Spectre genome_analysis dictionary
+        :param coverage_analysis: standard Spectre coverage_analysis dictionary
         :return: pandas dataframe holding at least column values ["chr", "position", "coverage"]
         """
-        self.logger.debug("CNV-Metrics: Convert Genome analysis to coverage dataframe")
-        list_modsepth_coverage = [[key, genome_analysis[key]["cov_data"].positions,
-                                   genome_analysis[key]["cov_data"].normalized_cov_ploidy] for key in
-                                  genome_analysis.keys()]
-        df_mosdepth_coverage = pd.DataFrame(list_modsepth_coverage)
-        df_mosdepth_coverage.columns = ["chr", "position", "coverage"]
-        df_mosdepth_coverage = df_mosdepth_coverage.explode(["position", "coverage"])
-        df_mosdepth_coverage.reset_index(inplace=True)
-        return df_mosdepth_coverage
+        self.logger.debug("Convert Genome analysis to coverage dataframe")
+        list_modsepth_coverage = [[key, self.coverage_analysis[key]["cov_data"].positions,
+                                   self.coverage_analysis[key]["cov_data"].normalized_cov_ploidy] for key in
+                                   self.coverage_analysis.keys()]
+        self.df_mosdepth_coverage = pd.DataFrame(list_modsepth_coverage)
+        self.df_mosdepth_coverage.columns = ["chr", "position", "coverage"]
+        self.df_mosdepth_coverage = self.df_mosdepth_coverage.explode(["position", "coverage"])
+        self.df_mosdepth_coverage.reset_index(inplace=True)
 
-    def __convert_cnv_calls_to_exclusions(self, cnv_call_list: dict):
+    def __convert_cnv_calls_to_exclusions(self):
         """
         Converts the Spectre into a specific form of dictionary, which will be used to perform the statistical
         analysis. Furthermore, the cnv calls play a role in randomly sampling coverage values which will be used
         in the statistical analysis.
-        :param cnv_call_list: standard Spectre cnv_call_list
-        :return: Dictionary with a list of Dictionaries entries
         """
-        self.logger.debug("CNV-Metrics: Converting cnv calls to exclusion zone")
+        self.logger.debug("Converting cnv calls to exclusion zone")
         result = {}
-        for key in cnv_call_list.keys():
+        for key in self.cnv_calls.keys():
             if key not in result.keys():
                 result[key] = []
-            for candidate in cnv_call_list[key]:
+            for candidate in self.cnv_calls[key]:
                 result[key].append({"start": candidate.start, "end": candidate.end, "info": "cnv"})
-        return result
+        self.cnv_exclusion = result
 
     def __convert_blacklist_exclusion_zone(self, blacklist: dict):
         """
@@ -73,7 +69,7 @@ class CNVMetrics(object):
         :param blacklist: standard Spectre blacklist
         :return:
         """
-        self.logger.debug("CNV-Metrics: Converting blacklist to exclusion zone")
+        self.logger.debug("Converting blacklist to exclusion zone")
         result = {}
         for key in blacklist.keys():
             if key not in result.keys():
@@ -81,7 +77,7 @@ class CNVMetrics(object):
             # convert tupel into dictionary
             for start, end in blacklist[key]:
                 result[key].append({"start": start, "end": end, "info": "blacklist"})
-        return result
+        self.blacklist_exclusions = result
 
     def __merge_dict_with_lists_as_value(self, dict_1: dict, dict_2: dict) -> dict:
         """
@@ -91,7 +87,7 @@ class CNVMetrics(object):
         :param dict_2: secondary dictionary. (values will be appended to the dict_1 values)
         :return: merged and newly created dictionary
         """
-        self.logger.debug("CNV-Metrics: Merging exclusion zones")
+        self.logger.debug("Merging exclusion zones")
         dict_result = dict_1.copy()
         for key in dict_2:
             if key not in dict_1.keys():
@@ -107,7 +103,7 @@ class CNVMetrics(object):
         :param dict_excl_zone: list of indices
         :return:
         """
-        self.logger.debug("CNV-Metrics: Getting exclusion zone indices in mosdepth coverage data")
+        self.logger.debug("Getting exclusion zone indices in mosdepth coverage data")
         excl_indices = []
         for excl_key in dict_excl_zone.keys():
             df_chr = df_mosdepth_coverage.loc[df_mosdepth_coverage.chr == excl_key]
@@ -126,13 +122,12 @@ class CNVMetrics(object):
         :param amount:
         :return:
         """
-        self.logger.debug("CNV-Metrics: Generating random coverage sample indices")
+        self.logger.debug("Generating random coverage sample indices")
         result_hash_of_filename = hashlib.md5(self.hashname.encode()).hexdigest()  # used for the random samples
         random.seed(result_hash_of_filename)
 
         fraction = amount
-        last_index = len(df_source.index) - 1  # len(df.index)
-        # last_index = df_source["excl_zone"].size - 1
+        last_index = len(df_source.index) - 1
         cov_window_amount = int(last_index * fraction)
 
         samples_indices = random.sample(range(0, last_index), cov_window_amount)
@@ -147,7 +142,7 @@ class CNVMetrics(object):
         :param df_random_sample_coverage: dataframe holding randomly selected coverage data
         :return: dictionary with: cnv_call_mean, score (z-score), pvalue, ...
         """
-        # self.logger.debug("CNV-Metrics: Performing the KS-test")
+        # self.logger.debug("Performing the KS-test")
         result = {}
 
         cnv_coverage = np.array(cnv_coverage)
@@ -172,7 +167,7 @@ class CNVMetrics(object):
         :param df_random_sample_coverage: dataframe holding randomly selected coverage data
         :return: dictionary with: cnv_call_mean, score (z-score), pvalue, ...
         """
-        # self.logger.debug("CNV-Metrics: Performing the Z-Test")
+        # self.logger.debug("Performing the Z-Test")
         result = {}
         cnv_coverage = np.array(cnv_coverage)
         cnv_coverage = cnv_coverage[~np.isnan(cnv_coverage)]  # exclude NaN values
@@ -208,7 +203,7 @@ class CNVMetrics(object):
         Preparing all the necessary variables, to performe the CNV evaluation on the cnv candidates
         :return: None
         """
-        self.logger.debug("CNV-Metrics: Preparing all parameters for the cnv evaluation")
+        self.logger.debug("Preparing all parameters for the cnv evaluation")
         df_coverage_candidate = self.df_mosdepth_coverage.copy()
         df_coverage_candidate["blacklist"] = False  # holds only the values if row is in blacklist
         # df_coverage_candidate["cnv"] = False  # holds only values that are in cnv_events
@@ -221,9 +216,6 @@ class CNVMetrics(object):
                                                                                         self.blacklist_exclusions)
 
         # Add exclusion indices
-        # if len(excl_zone_blacklist_indices) > 0:
-        # df_coverage_candidate_no_Nans.loc[excl_zone_blacklist_indices, "blacklist"] = True
-        # df_coverage_candidate_no_Nans.loc[df_coverage_candidate_no_Nans.index.isin(excl_zone_blacklist_indices), "blacklist"] = True
         df_coverage_candidate_no_Nans.iloc[
             excl_zone_blacklist_indices, df_coverage_candidate_no_Nans.columns.get_loc("blacklist")] = True
 
@@ -237,11 +229,17 @@ class CNVMetrics(object):
 
         # add for later use
         if self.cnv_calls:
-            self.__recalculate_exlustion_zone(self.cnv_calls)
+            self.__recalculate_exlustion_zone()
         else:
             self.df_coverage_candidate_no_excl_zone_random_samples = self.df_coverage_candidate_no_blacklist_random_samples.copy()
 
-    def __recalculate_exlustion_zone(self, cnv_calls) -> None:
+        if self.as_dev:
+            # write random samples to file
+            self.logger.debug("CNV-Metrics: Writing random samples to file")
+            self.df_coverage_candidate_no_blacklist_random_samples.to_csv(
+                f"{self.output_dir}/debug/cnv_metrics_random_samples.csv.gz", sep="\t", index=False, compression="gzip")
+
+    def __recalculate_exlustion_zone(self) -> None:
         """
         Recalculates the random sample coverage, based on new cnv_calls. This ensures that no coverage sample from
         the blacklist or an existing CNV call will be used to give the CNV calls a score.
@@ -249,7 +247,8 @@ class CNVMetrics(object):
         :return: None
         """
         # setup
-        self.cnv_exclusion = self.__convert_cnv_calls_to_exclusions(cnv_calls)
+        # fill in self.cnv_exclusion
+        self.__convert_cnv_calls_to_exclusions()
         self.blacklist_cnv_exclusion = self.__merge_dict_with_lists_as_value(self.blacklist_exclusions,
                                                                              self.cnv_exclusion)
 
@@ -303,80 +302,170 @@ class CNVMetrics(object):
         :param dup_border_multiplier: Multiplier for the tightness of the upper (duplication) border
         :return: Tupel with deletion border and duplication border (DEL,DUP)
         """
-        mean = float(np.mean(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
-        sd = float(np.std(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
-        var = np.var(self.df_coverage_candidate_no_excl_zone_random_samples['coverage'])
-
-        # Rough border estimation
-        lower_border = mean - (sd * del_border_multiplier)
-        upper_border = mean + (sd * dup_border_multiplier)
-
         # Find optimal border
-        ploidy_offset_deletion_border = ploidy - 1
-        offset_duplication_border = ploidy + 1
+        ploidy_offset_deletion_threshold = ploidy - 1
+        ploidy_offset_duplication_threshold = ploidy + 1
         epsilon = 0.01
         step_cnt = 1
         max_steps = 1000
         found_new_deletion_border = False
         found_new_duplication_border = False
-        ratio = 0.4
+        ratio = 0.2  # default 0.4
+        sd_clip_n = 3 # SD multiplier for clipping the random coverage samples
+
+        mean = float(np.mean(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
+        # determine the SD of the random samples without considering the outliers
+        sd_estimate = float(np.std(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
+        # select only coverage values which are less than the mean + (SD * sd_clip_n), to avoid extreme outliers
+        df_random_clipped = self.df_coverage_candidate_no_excl_zone_random_samples['coverage'][
+            self.df_coverage_candidate_no_excl_zone_random_samples['coverage'] < mean + (sd_clip_n * sd_estimate)]
+        sd = float(np.std(df_random_clipped))
+        var = np.var(self.df_coverage_candidate_no_excl_zone_random_samples['coverage'])
+        self.logger.info(f"Random sample mean: {mean} \t SD: {sd} \t VAR: {var}")
+
+        # Rough border estimation
+        lower_threshold = mean - (sd * del_border_multiplier)
+        upper_threshold = mean + (sd * dup_border_multiplier)
+        pass
+
+        # lower and upper threshold under or over ploidy -/+ 1
+        if lower_threshold < ploidy_offset_deletion_threshold:
+            self.logger.warning(f"Estimated DEL threshold {lower_threshold} is under the allowed minimum threshold of {ploidy_offset_deletion_threshold}. ")
+            lower_threshold = (mean + ploidy_offset_deletion_threshold)/2
+            self.logger.warning(f"Recalculating DEL threshold using fallback to threshold entrypoint set to {lower_threshold}")
+        if upper_threshold > ploidy_offset_duplication_threshold:
+            self.logger.warning(f"Estimated DUP threshold {upper_threshold} is over the allowed maximum threshold of {ploidy_offset_duplication_threshold}. ")
+            upper_threshold = (mean + ploidy_offset_duplication_threshold)/2
+            self.logger.warning(f"Recalculating DUP threshold using fallback to threshold entrypoint set to {upper_threshold}")
 
         while step_cnt < max_steps:
             # Calculate DEL border
             if not found_new_deletion_border:
-                del_border_to_ploidy_offset = abs(lower_border - ploidy_offset_deletion_border) * (1 - ratio)
-                del_border_to_ploidy = abs(lower_border - ploidy) * ratio
-                if del_border_to_ploidy_offset > del_border_to_ploidy:
-                    lower_border = self.get_lower_border(mean, sd, del_border_multiplier, epsilon, step_cnt)
+                del_threshold_to_ploidy_offset = abs(lower_threshold - ploidy_offset_deletion_threshold) * (1 - ratio)
+                del_threshold_to_ploidy = abs(lower_threshold - ploidy) * ratio
+                self.logger.debug(f"DEL: {lower_threshold} \t DEL to ploidy offset: {del_threshold_to_ploidy_offset} \t DEL to ploidy: {del_threshold_to_ploidy}")
+
+                if lower_threshold > ploidy_offset_deletion_threshold:
+                    if del_threshold_to_ploidy_offset > del_threshold_to_ploidy:
+                        lower_threshold = self.get_lower_border(mean, sd, del_border_multiplier, epsilon, step_cnt)
+                    else:
+                        self.logger.debug(f"Stopping with deletion threshold calculation. Found threshold: {lower_threshold}")
+                        found_new_deletion_border = True
                 else:
+                    self.logger.debug(
+                        f"Stopping with deletion threshold calculation. Under ploidy Found threshold: {lower_threshold}, at step: {step_cnt}")
+                    lower_threshold = ploidy_offset_deletion_threshold
                     found_new_deletion_border = True
 
             # Calculate DUP border
             if not found_new_duplication_border:
-                dup_border_to_ploidy_offset = abs(upper_border - offset_duplication_border) * (1 - ratio)
-                dup_border_to_ploidy = abs(upper_border - ploidy) * ratio
-                if dup_border_to_ploidy_offset > dup_border_to_ploidy:
-                    upper_border = self.get_upper_border(mean, sd, dup_border_multiplier, epsilon, step_cnt)
+                dup_thresholds_to_ploidy_offset = abs(upper_threshold - ploidy_offset_duplication_threshold) * (1 - ratio)
+                dup_thresholds_to_ploidy = abs(upper_threshold - ploidy) * ratio
+                self.logger.debug(f"DUP: {upper_threshold} \t DUP to ploidy offset: {dup_thresholds_to_ploidy_offset} \t DUP to ploidy: {dup_thresholds_to_ploidy}")
+
+                if upper_threshold < ploidy_offset_duplication_threshold:
+                    if dup_thresholds_to_ploidy_offset > dup_thresholds_to_ploidy:
+                        upper_threshold = self.get_upper_border(mean, sd, dup_border_multiplier, epsilon, step_cnt)
+                    else:
+                        self.logger.debug(f"Stopping with duplication threshold calculation. Found threshold: {upper_threshold}")
+                        found_new_duplication_border = True
                 else:
+                    self.logger.debug(
+                        f"Stopping with duplication threshold calculation. Over ploidy Found threshold: {upper_threshold}, at step: {step_cnt}")
+                    upper_threshold = ploidy_offset_duplication_threshold
                     found_new_duplication_border = True
 
             step_cnt += 1
+        self.logger.debug(f"ploidy_offset_deletion_threshold: {ploidy_offset_deletion_threshold}")
+        self.logger.debug(f"ploidy: {ploidy}")
+        self.logger.debug(f"ploidy_offset_duplication_threshold: {ploidy_offset_duplication_threshold}")
+        self.logger.debug(f"NEW Calculated thresholds for DEL: {lower_threshold} and DUP: {upper_threshold}")
+        # save values
+        self.del_threshold = lower_threshold
+        self.dup_threshold = upper_threshold
 
-        return lower_border, upper_border
+    def calculate_del_dup_borders_sd(self, sd_clip_n: float = 2.0):
+        """
+        Determine the deletion and duplication thresholds based on the SD of the randomly selected coverage
+        :param sd_clip_n: SD multiplier for clipping the random coverage samples
+        :return:
+        """
+        random_sample_mean = float(np.mean(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
+        # determine the SD of the random samples without considering the outliers
+        random_sample_sd = float(np.std(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
+        # select only coverage values which are less than the mean + (SD * sd_clip_n), to avoid extreme outliers
 
+        del_threshold = random_sample_mean - (random_sample_sd * sd_clip_n)
+        dup_threshold = random_sample_mean + (random_sample_sd * sd_clip_n)
+
+        del_threshold, dup_threshold = self.check_del_dup_borders(del_threshold, dup_threshold)
+
+        self.strict_del_threshold = del_threshold
+        self.strict_dup_threshold = dup_threshold
+
+        return del_threshold, dup_threshold
+        # self.del_threshold = del_threshold
+        # self.dup_threshold = dup_threshold
+
+
+    def calculate_del_dup_borders_quantile(self, left_quantile: float = 0.1, right_quantile: float = 0.9):
+        """
+        Determine the deletion and duplication thresholds based on the quantiles of the randomly selected coverage
+        :param left_quantile: DEL threshold quantile 10th quantile
+        :param right_quantile: DUP threshold quantile 90th quantile
+        :return:
+        """
+        self.logger.debug(f"Calculationg DEL/DUP thresholds based on quantiles: {left_quantile} and {right_quantile}")
+
+        mean = float(np.mean(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
+        # determine the SD of the random samples without considering the outliers
+        sd_estimate = float(np.std(self.df_coverage_candidate_no_excl_zone_random_samples['coverage']))
+        # select only coverage values which are less than the mean + (SD * sd_clip_n), to avoid extreme outliers
+
+        sd_clip_n = 2  # SD multiplier for clipping the random coverage samples
+        df_random_clipped = self.df_coverage_candidate_no_excl_zone_random_samples['coverage'][
+            self.df_coverage_candidate_no_excl_zone_random_samples['coverage'] < mean + (sd_clip_n * sd_estimate)]
+
+        del_threshold = df_random_clipped.quantile(left_quantile)
+        dup_threshold = df_random_clipped.quantile(right_quantile)
+
+        del_threshold, dup_threshold = self.check_del_dup_borders(del_threshold, dup_threshold)
+        self.logger.debug(f"Calculated thresholds for DEL: {del_threshold} and DUP: {dup_threshold}")
+        self.del_threshold = del_threshold
+        self.dup_threshold = dup_threshold
+
+    def check_del_dup_borders(self, del_threshold: float, dup_threshold: float) -> tuple:
+        self.logger.debug(f"CNV-Metrics: Calculated thresholds for DEL: {del_threshold} and DUP: {dup_threshold}")
+        if not self.is_cancer:
+            # If cancer mode is present no check of thresholds between ploidy -/+ 1 is performed
+            if del_threshold < self.ploidy - 1:
+                self.logger.warning(
+                    f"Estimated DEL threshold {del_threshold} is under the allowed minimum threshold of {self.ploidy - 1}. ")
+                del_threshold = self.ploidy - 1
+                self.logger.warning(f"Using fallback to threshold of: {del_threshold}")
+            if dup_threshold > self.ploidy + 1:
+                self.logger.warning(
+                    f"Estimated DUP threshold {dup_threshold} is over the allowed maximum threshold of {self.ploidy + 1}. ")
+                dup_threshold = self.ploidy + 1
+                self.logger.warning(f"Using fallback to threshold of: {dup_threshold}")
+        return del_threshold, dup_threshold
     def evaluate_cnvs(self, cnv_calls=None, refined_cnvs: bool = False) -> dict:
         """
         Evaluating all submitted CNV calls, by applying statistical tests. Optionally, plotting the location of the CNVs
         on the global coverage samples per chr.
         :return: Modified CNVCandidates
         """
-        self.logger.debug("CNV-Metrics: Evaluating all CNVs")
+        self.logger.debug("Evaluating all CNVs")
 
-        if cnv_calls is not None:
-            self.logger.debug("CNV-Metrics: Recalculating")
-            self.__recalculate_exlustion_zone(cnv_calls)
+        if self.cnv_calls is not None:
+            self.logger.debug("Recalculating")
+            self.__recalculate_exlustion_zone()
 
-        self.logger.info(f"CNV-Metrics: DEL border:{self.del_border} \t DUP border:{self.dup_border}")
-        border_del = self.del_border
-        border_dup = self.dup_border
+        self.logger.info(f"DEL border:{self.del_threshold} \t DUP border:{self.dup_threshold}")
+        border_del = self.del_threshold
+        border_dup = self.dup_threshold
 
         for cnv_chr in self.cnv_calls.keys():
-            if self.as_dev:
-                self.logger.debug(f"CNV-Metrics: Creating a new plot at chromosome {cnv_chr}")
-                fig, ax = plt.subplots()
-                x, bins, p = ax.hist(self.df_coverage_candidate_no_excl_zone_random_samples['coverage'], bins=100,
-                                     range=[0.0, 5.0])
-                width = p.patches[0].get_width()
-
-                ax.axvline(border_del, ymax=1, color="red", linestyle=":")
-                ax.axvline(border_dup, ymax=1, color="green", linestyle=":")
-                ax.axhline()
-                ax.text(1.2 - 0.65, max(x), f"DEL: {round(self.del_border)}")
-                ax.text(2.7 - 0.65, max(x), f"DUP: {round(self.dup_border)}")
-                ax.set_title(f"Mean coverage position of CNVs at {cnv_chr} based on random global coverage samples")
-                ax.set_xlabel('Coverage')
-                ax.set_ylabel('Count')
-
             for cnv in self.cnv_calls[cnv_chr]:
                 # Z-Test 2 - DIY
                 if refined_cnvs:
@@ -394,7 +483,7 @@ class CNVMetrics(object):
                                              "pvalue": cnv_metrics_Z["pvalue"],
                                              "sample_score": cnv_metrics_Z["sample_score"]}
 
-                if self.as_dev:
+                if self.as_dev and False:  # BUG line 385
                     if not np.isnan(cnv_metrics_Z["cnv_call_mean"]):
 
                         # pre check --> avoide div by 0
@@ -419,8 +508,22 @@ class CNVMetrics(object):
                                     xytext=(cnv_metrics_Z["cnv_call_mean"], cnv_y + annotation_endpoint_offset),
                                     rotation=60,
                                     fontsize=12, arrowprops=dict(facecolor='green', shrink=0.05))
-            if self.as_dev:
-                plot_path = f"{self.debug_dir}/cnv-calls-{self.hashname}-at_chr-{cnv_chr}.png"
-                self.logger.debug(f"CNV-Metrics:{plot_path}")
-                fig.savefig(plot_path)
-        return self.cnv_calls
+        if self.as_dev:
+            self.logger.debug(f"Creating CNV distribution plot")
+            fig, ax = plt.subplots()
+            x, bins, p = ax.hist(self.df_coverage_candidate_no_excl_zone_random_samples['coverage'], bins=100,
+                                 range=[0.0, 5.0])
+            # FIXME: BUG -> AttributeError: 'silent_list' object has no attribute 'patches'
+            # width = p.patches[0].get_width()
+
+            ax.axvline(border_del, ymax=1, color="red", linestyle=":")
+            ax.axvline(border_dup, ymax=1, color="green", linestyle=":")
+            ax.axhline()
+            ax.text(2.7 - 0.65, max(x), f"DUP: {round(self.dup_threshold, 4)}")
+            ax.text(1.2 - 0.65, max(x), f"DEL: {round(self.del_threshold, 4)}")
+            ax.set_title(f"Coverage distribution on random global bin samples")
+            ax.set_xlabel('Coverage')
+            ax.set_ylabel('Count')
+            plot_path = f"{self.debug_dir}/genome_coverage_distribution-{self.hashname}.png"
+            self.logger.debug(f'Plot path: {plot_path}')
+            fig.savefig(plot_path)

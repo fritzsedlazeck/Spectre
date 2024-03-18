@@ -40,7 +40,7 @@ class NormaldataAnalyser:
             if float(normalized_candidates[i]) != 0:
                 l = i - n
                 if i > n:
-                    y = normalized_candidates[l:i].astype(np.float)
+                    y = normalized_candidates[l:i].astype(float)
                     slope = cls.get_slope_from_values(x,y)
                 else:
                     slope = 0

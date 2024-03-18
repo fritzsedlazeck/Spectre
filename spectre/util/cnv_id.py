@@ -14,7 +14,7 @@ class CNV_ID(object):
         return ''.join(random.choice(chars) for _ in range(size))
 
     @classmethod
-    def n_id_generator(cls, n=1, existing_ids=None, size=8, chars=string.ascii_uppercase + string.digits):
+    def n_id_generator(cls, existing_ids, n=1, size=8, chars=string.ascii_uppercase + string.digits):
         """
         Generates n amounts of unique ids with given size
         :param n: amount of new unique ids
@@ -25,9 +25,6 @@ class CNV_ID(object):
         """
         new_ids = []
 
-        if existing_ids is None:
-            existing_ids = []
-
         for i in range(0, n):
             while True:
                 id = cls.id_generator(n, size, chars)
@@ -37,5 +34,3 @@ class CNV_ID(object):
                     break
 
         return new_ids
-
-

@@ -1,14 +1,21 @@
 import numpy as np
-from analysis.cnv_candidate import CNVCandidate
-import pandas as pd
-import logging as logger
+from spectre.classes.cnv_candidate import CNVCandidate
+from spectre.util import logger
 
 
 class CNVCall(object):
     def __init__(self, as_dev=False):
         self.as_dev = as_dev
-        logger.basicConfig(level=logger.DEBUG) if as_dev else logger.basicConfig(level=logger.INFO)
-        self.logger = logger
+        self.logger = logger.setup_log(__name__, self.as_dev)
+        self.candidate_list = []
+        self.min_run = 10  # default = 10; minimum number of bins to be considered a CNV
+
+    def append_candidate(self, sample_origin, bin_size, chromosome_name, cnv_pos_cand_list, cnv_cov_cand_list,
+                         current_cnv_type):
+        if len(cnv_pos_cand_list) >= self.min_run:
+            cnv_candidates = CNVCandidate(sample_origin=sample_origin, bin_size=bin_size)
+            cnv_candidates.push_candidates(chromosome_name, cnv_pos_cand_list, cnv_cov_cand_list, current_cnv_type)
+            self.candidate_list.append(cnv_candidates)
 
     def cnv_coverage(self, chromosome_coverage_data, bin_size, chromosome_name, sample_origin="",
                      lower_bound: float = None,
@@ -20,12 +27,12 @@ class CNVCall(object):
         #   .coverage_log2 = np.NaN         # log2(x)
         #   .normalized_cov = np.NaN        # x/median
         # * .normalized_cov_ploidy = np.NaN   # x/median * 2 -> for diploid
-        candidate_list = []
+        self.candidate_list = []
         # local
-        min_run = 10
         run = 0
         cnv_pos_cand_list = []
         cnv_cov_cand_list = []
+        # cnv_raw_cov_cand_list = []
         run_current_pos = 0
         run_start = 0
         cnv_type = ""
@@ -35,10 +42,11 @@ class CNVCall(object):
                 not isinstance(chromosome_coverage_data.positions, np.ndarray):
             self.logger.debug(type(chromosome_coverage_data.normalized_cov_ploidy))
             self.logger.debug(type(chromosome_coverage_data.positions))
-            self.logger.error(f'No data is available, check that the mosdepth.region.bed.gz file is not empty '
+            self.logger.warning(f'No data is available, check that the mosdepth.region.bed.gz file is not empty '
                               f'or that the selected chromosome (--only-chr <CHR>) exists')
 
-        for (cov, pos) in zip(chromosome_coverage_data.normalized_cov_ploidy, chromosome_coverage_data.positions):
+        for (cov, pos, raw_cov) in zip(chromosome_coverage_data.normalized_cov_ploidy,
+                                       chromosome_coverage_data.positions, chromosome_coverage_data.coverage_raw):
             # start/continue run
             if not np.isnan(cov):
                 # Determine CNV Type
@@ -51,39 +59,31 @@ class CNVCall(object):
                     else:
                         # continue run if not in the chromosome end
                         if pos - run_current_pos < bin_size + 1 and current_cnv_type == cnv_type:
-                            run += 1
-                            cnv_pos_cand_list.append(pos)
-                            cnv_cov_cand_list.append(cov)
+                            cnv_pos_cand_list.append(int(pos))
+                            cnv_cov_cand_list.append(float(cov))
+                            # cnv_raw_cov_cand_list.append(float(raw_cov))
                         # break run end of chromosome
                         else:
-                            if len(cnv_pos_cand_list) > 1:
-                                cnv_candidates = CNVCandidate(sample_origin, self.as_dev)
-                                cnv_candidates.push_candidates(chromosome_name, cnv_pos_cand_list, cnv_cov_cand_list,
-                                                               current_cnv_type)
-
-                                if len(cnv_pos_cand_list) >= min_run:
-                                    candidate_list.append(cnv_candidates)
+                            self.append_candidate(sample_origin, bin_size, chromosome_name, cnv_pos_cand_list,
+                                                  cnv_cov_cand_list, current_cnv_type)
                             # restart run
-                            run = 1
-                            cnv_pos_cand_list = [pos]
-                            cnv_cov_cand_list = [cov]
+                            cnv_pos_cand_list = [int(pos)]
+                            cnv_cov_cand_list = [float(cov)]
+                            # cnv_raw_cov_cand_list = [float(raw_cov)]
                             run_start = pos
                             current_cnv_type = cnv_type
                 # break run
                 else:
-                    if len(cnv_pos_cand_list) > 1:
-                        cnv_candidates = CNVCandidate(sample_origin, self.as_dev)
-                        cnv_candidates.push_candidates(chromosome_name, cnv_pos_cand_list, cnv_cov_cand_list,
-                                                       current_cnv_type)
-
-                        if len(cnv_pos_cand_list) >= min_run:
-                            candidate_list.append(cnv_candidates)
+                    self.append_candidate(sample_origin, bin_size, chromosome_name, cnv_pos_cand_list,
+                                          cnv_cov_cand_list, current_cnv_type)
                     # restart run
-                    run = 1
                     cnv_pos_cand_list = []
                     cnv_cov_cand_list = []
+                    # cnv_raw_cov_cand_list = []
                     run_start = pos
                     current_cnv_type = ""
                 run_current_pos = pos
-
-        return candidate_list
+        # Append last candidate if possible to the candidate list
+        self.append_candidate(sample_origin, bin_size, chromosome_name, cnv_pos_cand_list,
+                              cnv_cov_cand_list, current_cnv_type)
+        return self.candidate_list

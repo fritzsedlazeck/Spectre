@@ -1,26 +1,34 @@
 sending incremental file list
-./
-how_to_use.sh
-spectre.py
-spectreCNV.py
-analysis/
-analysis/af_stats.py
-analysis/analysis.py
-analysis/call_cnv_AF.py
-analysis/call_cnv_coverage.py
-analysis/cnv_candidate.py
-analysis/cnv_metrics.py
-bedtovcf/
-bedtovcf/Obj/
-compare/
-data/
-plots/
-util/
-util/mosdepthReader.py
-util/outputWriter.py
-util/vcf_parser.py
-util/metadata/
-vcfmerge/
+__pycache__/
+deleting __pycache__/spectreCNVPopulation.cpython-39.pyc
+deleting __pycache__/spectreCNV.cpython-39.pyc
+analysis/snv_analysis.py
+analysis/__pycache__/
+deleting analysis/__pycache__/snv_analysis.cpython-39.pyc
+deleting analysis/__pycache__/coverage_stats.cpython-39.pyc
+deleting analysis/__pycache__/cnv_metrics.cpython-39.pyc
+deleting analysis/__pycache__/call_cnv_coverage.cpython-39.pyc
+deleting analysis/__pycache__/call_cnv_AF.cpython-39.pyc
+deleting analysis/__pycache__/analysis.cpython-39.pyc
+deleting analysis/__pycache__/__init__.cpython-39.pyc
+classes/__pycache__/
+deleting classes/__pycache__/loh_candidate.cpython-39.pyc
+deleting classes/__pycache__/cnv_candidate.cpython-39.pyc
+libs/unidip/__pycache__/
+deleting libs/unidip/__pycache__/unidip.cpython-39.pyc
+deleting libs/unidip/__pycache__/dip.cpython-39.pyc
+plots/__pycache__/
+deleting plots/__pycache__/plot.cpython-39.pyc
+deleting plots/__pycache__/__init__.cpython-39.pyc
+util/__pycache__/
+deleting util/__pycache__/vcf_parser.cpython-39.pyc
+deleting util/__pycache__/outputWriter.cpython-39.pyc
+deleting util/__pycache__/mosdepthReader.cpython-39.pyc
+deleting util/__pycache__/cnv_id.cpython-39.pyc
+deleting util/__pycache__/__init__.cpython-39.pyc
+util/metadata/__pycache__/
+deleting util/metadata/__pycache__/metadataCollector.cpython-39.pyc
+deleting util/metadata/__pycache__/__init__.cpython-39.pyc
 
-sent 13,249 bytes  received 1,086 bytes  4,095.71 bytes/sec
-total size is 141,818  speedup is 9.89
+sent 1,638 bytes  received 1,385 bytes  863.71 bytes/sec
+total size is 256,196  speedup is 84.75
