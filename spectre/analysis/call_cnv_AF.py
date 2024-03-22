@@ -72,7 +72,7 @@ class CNVCall(object):
             return True
         return np.nan()
 
-    def af_cnv_call_region(self, cnv_candidates, snv_vcf):
+    def af_cnv_call_region(self, cnv_candidates, snv_vcf, af_tag):
         cnv_calls = {}
         vcf_file = pysam.VariantFile(snv_vcf)
         vcf_sample = list(vcf_file.header.samples).pop()  # only the first sample is used if a multisample is given
@@ -87,8 +87,9 @@ class CNVCall(object):
                     self.logger.debug(f'FP,{genomic_region} => {each_candidate.cn_status},{each_candidate.type}')
                 else:
                     # AF is already a float
-                    af = np.nanmean([var_record.samples[vcf_sample]["AF"] for var_record in \
-                        vcf_file.fetch(region=genomic_region)])
+                    af = np.nanmean([var_record.samples[vcf_sample][af_tag] for var_record in \
+                        vcf_file.fetch(region=genomic_region) \
+                            if type(var_record.samples[vcf_sample][af_tag]) != tuple])
                     if self.af_cn_state_concordance(af, each_candidate.cn_status):
                         cnv_calls[each_chromosome].append(each_candidate)
                     else:

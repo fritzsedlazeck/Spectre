@@ -4,6 +4,7 @@ import math
 import os
 import sys
 from spectre.util import logger
+from collections import defaultdict
 import gzip
 import copy
 from spectre.classes.loh_candidate import LoHCandidate
@@ -69,9 +70,9 @@ class SNVAnalysis(object):
         vaf="VAF"  # DeepVariant
         header=self.snv_vcf.header.formats.keys()
         self.header_has_tags = self.gt_tag in header and self.dp_tag in header and (af in header or vaf in header)
-        self.logger.error("Not all tags needed are present in the SNV VCF file. Please remove the SNV file") if \
-            not self.header_has_tags else None
-        sys.exit(1)
+        if not self.header_has_tags:
+            self.logger.error("Not all tags needed are present in the SNV VCF file. Please remove the SNV file")
+            sys.exit(1)
         self.af_tag=af if af in header else vaf
         self.gt_het = (0, 1)
         self.gt_ref = (0, 0)
@@ -148,10 +149,10 @@ class SNVAnalysis(object):
 
     def snv_nhet_chromosome(self):
         self.logger.debug(f'Het sites count per chromosome')
-        chr_het = {chro: 0 for chro in self.genome_info["chromosomes"]}
-        chr_alt = {chro: 0 for chro in self.genome_info["chromosomes"]}
-        chr_all = {chro: 0 for chro in self.genome_info["chromosomes"]}
-        cov_het = {chro: 0 for chro in self.genome_info["chromosomes"]}
+        chr_het = defaultdict(int)
+        chr_alt = defaultdict(int)
+        chr_all = defaultdict(int)
+        cov_het = defaultdict(int)
         # go to begginging of file
         self.snv_vcf.seek(0)
         for snv_record in self.snv_vcf.fetch():
@@ -160,6 +161,9 @@ class SNVAnalysis(object):
             except ValueError:
                 [snv] = snv_record.samples.values()[0]
             chr_all[snv_record.chrom] += 1
+            # check for multiple AFs in snv
+            if type(snv[self.af_tag]) == tuple: 
+                continue
             if snv_record.qual > self.min_snv_qual and snv[self.dp_tag] > self.min_coverage_site:
                 # We only expect a single sample column in the VCF
                 # get only HET genotypes
@@ -208,6 +212,9 @@ class SNVAnalysis(object):
                 [snv] = snv_record.samples.values()
             except ValueError:
                 [snv] = snv_record.samples.values()[0]
+            # check for multiple AFs in snv
+            if type(snv[self.af_tag]) == tuple: 
+                continue
             if use_chr_het_sites is not None:
                 if snv_record.chrom in use_chr_het_sites:
                     # Only high quality calls, threshold suggested by Medhat
@@ -232,7 +239,7 @@ class SNVAnalysis(object):
         cnv_by_af = CNVAnalysisSNP(genome_info=self.genome_info,
                                    user_args=self.spectre_args)
         self.logger.info("Calculating CNV events based on SNV data")
-        self.cnv_calls_list_af = cnv_by_af.af_cnv_call_region(cnv_calls_list, self.snv_file)
+        self.cnv_calls_list_af = cnv_by_af.af_cnv_call_region(cnv_calls_list, self.snv_file, self.af_tag)
 
     @staticmethod
     def get_score_sigmoid(lohc):
@@ -275,6 +282,8 @@ class SNVAnalysis(object):
                     if snv_record.qual > self.min_snv_qual:
                         total_sites += 1
                         [snv] = snv_record.samples.values()
+                        if type(snv[self.af_tag]) == tuple: 
+                            continue
                         dp, gt, af = int(snv[self.dp_tag]), snv[self.gt_tag], float(snv[self.af_tag])
                         if gt == self.gt_alt:
                             loh_sites_count += 1

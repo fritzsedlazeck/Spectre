@@ -110,7 +110,10 @@ class VCFParser(object):
                             if format_.__contains__("VAF"):
                                 # pepper-margin-deepvariant
                                 af_index = format_.split(":").index("VAF")
-                                af = float(sample_.split(":")[af_index])
+                                try:
+                                    af = float(sample_.split(":")[af_index])
+                                except ValueError:
+                                    continue
                                 # self.logger.debug("like pepper-margin-deepvariant")
                             else:
                                 pass

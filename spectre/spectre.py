@@ -300,6 +300,10 @@ class Spectre:
         if not os.path.exists(f'{self.spectre_args.out_dir}/tmp'):
             os.makedirs(f'{self.spectre_args.out_dir}/tmp')
 
+        # directory for cnv plots
+        if not os.path.exists(f'{self.spectre_args.out_dir}/img'):
+            os.makedirs(f'{self.spectre_args.out_dir}/img')
+
         if self.spectre_args.as_dev:
             self.debug_dir = f"{self.spectre_args.out_dir}/debug"
             if not os.path.exists(self.debug_dir):
@@ -436,11 +440,11 @@ def get_arguments():
 
         Population:
             Required
-                --candidates   At least 2 candidate files (.spc or .vcf) which should be taken into consideration for the population mode.
+                --candidates   At least 2 candidate files .spc which should be taken into consideration for the population mode.
                 --sample-id    Name of the output file
                 --output-dir   Output directory
             Optional
-                --reference    Reference sequence (Required if VCF files are used!)
+                --reference    Reference sequence
         Version:
             version    Shows current version/build
     """
@@ -604,15 +608,12 @@ def main():
     main_logger.info(f"Spectre input: {command} {' '.join(sys.argv[2:])}")
     main_logger.debug(f'Debug output is enabled') if run_as_dev else None
     spectre_run = Spectre(run_as_dev)
-    min_bin_size = 100
     if command == "CNVCaller":
-        # logging.error("Bin size too small") if spectre_args.bin_size < min_bin_size else ""
         # ARGS:  bin_size, coverage_file_bed, sample_id, output_dir, reference="", metadata="", ...
         spectre_run.spectre_args.set_params_from_args(spectre_args)
         spectre_run.spectre_exe()
     elif command == "RemoveNs":
-        main_logger.error("Bin size too small") if spectre_args.bin_size < min_bin_size else ""
-        # ARGS:  reference_fas, output_dir, meta_data_report, bin_size=500, threshold=5
+        # ARGS:  reference_fas, output_dir, meta_data_report, threshold=5
         metadata_call_from_console = True
         spectre_run.metadata_args.set_params_from_args(spectre_args, metadata_call_from_console)
         spectre_run.meta_data_extraction()

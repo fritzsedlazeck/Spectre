@@ -81,6 +81,6 @@ class CNVPlot:
             self.main_plot.plot(np.array([1, stats.chromosome_len]), np.array([upperb, upperb]),
                                 linewidth='1', color="#dd3497")
         self.figure.suptitle(f'{self.file_prefix} chromosome: {current_chromosome}')
-        self.figure.savefig(f'{self.output_directory}/debug/{self.file_prefix}_plot_cnv_{current_chromosome}.png', dpi=300)
-        self.logger.info(f'Plot saved: debug/{self.file_prefix}_plot_cnv_{current_chromosome}.png')
+        self.figure.savefig(f'{self.output_directory}/img/{self.file_prefix}_plot_cnv_{current_chromosome}.png', dpi=300)
+        self.logger.info(f'Plot saved: img/{self.file_prefix}_plot_cnv_{current_chromosome}.png')
         self.figure.clf()

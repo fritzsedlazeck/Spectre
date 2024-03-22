@@ -193,20 +193,25 @@ class FastaRef:
         return result
 
     def extract_blacklisted_regions(self, blacklist_file: str = "") -> dict:
+        """
+        Extracts the blacklisted regions and saves them as a dictionary if present.
+        :param blacklist_file: path/to/blacklist.bed
+        :return: dict
+        """
         result = dict()
-        if blacklist_file.__eq__(""):
-            path = os.path.abspath(os.path.expanduser(self.metadata_args.black_list))
-        else:
+        # Only try to read the blacklist if it is not provided
+        if blacklist_file != "":
             path = os.path.abspath(os.path.expanduser(blacklist_file))
-        with open(path, "r") as fp:
-            mm = mmap.mmap(fp.fileno(), 0, prot=mmap.PROT_READ)
-            for line in iter(mm.readline, b""):
-                # decode line and cut away last char from line (\n)
-                term = line.decode("utf-8")[:-1]
-                chrom, start, end = term.split("\t")[:3]
-                if str(chrom) not in result:
-                    result[str(chrom)] = []
-                result[str(chrom)].append((start, end))
+
+            with open(path, "r") as fp:
+                mm = mmap.mmap(fp.fileno(), 0, prot=mmap.PROT_READ)
+                for line in iter(mm.readline, b""):
+                    # decode line and cut away last char from line (\n)
+                    term = line.decode("utf-8")[:-1]
+                    chrom, start, end = term.split("\t")[:3]
+                    if str(chrom) not in result:
+                        result[str(chrom)] = []
+                    result[str(chrom)].append((start, end))
         return result
 
     @classmethod
