@@ -10,7 +10,8 @@ from spectre.classes.cnv_candidate import CNVCandidate
 
 
 class SpectrePopulation(object):
-    def __init__(self, sample_id, output_dir, genome_info, reciprocal_overlap=0.8, as_dev=False):
+    def __init__(self, sample_id, output_dir, genome_info, reciprocal_overlap=0.8, discard_quality_control=False,
+                 as_dev=False):
 
         self.logger = logger.setup_log(__name__, as_dev)
         self.sample_id = sample_id
@@ -21,6 +22,8 @@ class SpectrePopulation(object):
         self.genome_info = genome_info
         self.bin_size = 0  # binsize of all samples
         self.reciprocal_overlap = reciprocal_overlap  # the minimum position overlap to be considered a support CNV call
+        self.discard_quality_control = discard_quality_control  # if True, all CNVs that do not pass the quality
+        # control will be considered for the lookup
         self.as_dev = as_dev  # TODO get outside propagation
 
     def merge_genome_info(self, new_genome_info: dict) -> None:
@@ -48,18 +51,20 @@ class SpectrePopulation(object):
         :param files: list of paths to the .spc
         :return: None
         """
-
+        file_counter = 1
         for file in files:
             try:
                 if os.path.exists(file):
                     if str(file).__contains__(".spc") or str(file).__contains__(".spc.gz"):
-                        self.load_candidates_from_intermediate_file_spc(file)
+                        self.load_candidates_from_intermediate_file_spc(file, file_counter)
                 else:
                     raise
             except:
                 self.logger.error(f"File does not exist! Provided : {file}")
+            file_counter += 1
+        pass
 
-    def load_candidates_from_intermediate_file_spc(self, file) -> None:
+    def load_candidates_from_intermediate_file_spc(self, file, file_counter) -> None:
         """
         Load candidates from a json format file and converting the content to candidates.
         :param file: path to pickled file
@@ -69,21 +74,24 @@ class SpectrePopulation(object):
         try:
             if '.gz' in file:
                 with gzip.open(file, "rt", encoding="UTF-8") as input_file:
+                    self.logger.info(f"Loading file: {file}")
                     spc_dict = json.load(input_file)
             else:
                 with open(file, "rt") as input_file:
                     spc_dict = json.load(input_file)
             # Convert dictionary to candidates
             filename = os.path.basename(file).split(".spc")[0]
+            sample_name = spc_dict["metadata"]["sample_id"]
             # initialize bin size
             if self.bin_size < 1:
                 self.bin_size = int(spc_dict["metadata"]["bin_size"])
             # check if sample bin size is matching the other samples
             if self.bin_size != int(spc_dict["metadata"]["bin_size"]):
-                self.logger.warning(f"Bin size of {filename} does not match the bin size of the other samples! ")
-                self.logger.warning(f" Skipping: {filename}")
+                self.logger.warning(
+                    f"Bin size of {filename} ({sample_name}) does not match the bin size of the other samples! ")
+                self.logger.warning(f" Skipping: {filename} ({sample_name})")
             else:
-                self.convert_spc_to_candidate_list(filename, spc_dict)
+                self.convert_spc_to_candidate_list(spc_dict, file_counter)
         except:
             self.logger.error(traceback.print_exc())
             self.logger.error(f"Check if file meets the JSON standard. Error in file {file}")
@@ -103,22 +111,13 @@ class SpectrePopulation(object):
                         new_candidate.__setattr__(candidate_key, candidate_value)
                         new_candidate.__setattr__('sample_origin', filename)  # update source to filename
                         pass
-                new_candidate.reinitialize_candidate_values()
                 result[chrom].append(new_candidate)
         return result
 
-    def merge_dicts(self, dict1, dict2):
-        """
-        Merging two dictionaries
-        :param dict1: dictionary 1
-        :param dict2: dictionary 2
-        :return: merged dictionary
-        """
-        result = dict1.copy()
-        result.update(dict2)
-        return result
-
-    def convert_spc_to_candidate_list(self, filename, candidate_dict: dict):
+    def convert_spc_to_candidate_list(self, candidate_dict: dict, file_counter: int):
+        filename = candidate_dict["metadata"]["sample_id"]
+        if filename in self.final_candidates.keys():
+            filename = f'{filename}_{file_counter}'
         if "spectre" not in candidate_dict["metadata"]["source"]:
             self.logger.warning("Provided .spc file does not originate from Spectre.")
             self.logger.warning("Trying to convert the provided file")
@@ -140,23 +139,47 @@ class SpectrePopulation(object):
                 self.final_candidates[filename] = dict()
             refined_loh_candidates = self.convert_dict_to_candidate_list(filename, candidate_dict['refined_loh_cnvs'],
                                                                          candidate_class="LoHCandidate")
-            self.final_candidates[filename].update(refined_loh_candidates)
-        # Raw CNVs
-        # Get raw cnvs
-        if 'raw_cnvs' in candidate_dict.keys():
-            if filename not in self.raw_candidates.keys():
-                self.raw_candidates[filename] = dict()
-            self.raw_candidates[filename] = self.convert_dict_to_candidate_list(filename, candidate_dict['raw_cnvs'])
-        else:
-            self.logger.warning("No raw CNVs found in .spc file.")
-        if 'raw_loh_cnvs' in candidate_dict.keys():
-            if filename not in self.raw_candidates.keys():
-                self.raw_candidates[filename] = dict()
-            raw_loh_cnv_candidates = self.convert_dict_to_candidate_list(filename, candidate_dict['raw_loh_cnvs'],
-                                                                         candidate_class="LoHCandidate")
-            self.raw_candidates[filename].update(raw_loh_cnv_candidates)
+            self.final_candidates[filename] = self.merge_candidate_dicts(self.final_candidates[filename],
+                                                                         refined_loh_candidates)
 
+        # Raw CNVs
+        if self.discard_quality_control:
+            # Get raw cnvs
+            if 'raw_cnvs' in candidate_dict.keys():
+                if filename not in self.raw_candidates.keys():
+                    self.raw_candidates[filename] = dict()
+                self.raw_candidates[filename] = self.convert_dict_to_candidate_list(filename,
+                                                                                    candidate_dict['raw_cnvs'])
+
+            else:
+                self.logger.warning("No raw CNVs found in .spc file.")
+            if 'raw_loh_cnvs' in candidate_dict.keys():
+                if filename not in self.raw_candidates.keys():
+                    self.raw_candidates[filename] = dict()
+                raw_loh_cnv_candidates = self.convert_dict_to_candidate_list(filename, candidate_dict['raw_loh_cnvs'],
+                                                                             candidate_class="LoHCandidate")
+
+                self.raw_candidates[filename] = self.merge_candidate_dicts(self.raw_candidates[filename],
+                                                                           raw_loh_cnv_candidates)
         pass
+
+    def merge_candidate_dicts(self, dict1, dict2):
+        """
+        Merging two dictionaries
+        :param dict1: dictionary 1
+        :param dict2: dictionary 2
+        :return: merged dictionary
+        """
+
+        result = dict1.copy()
+        for key2, values2 in dict2.items():
+            if key2 not in dict1.keys():
+                result[key2] = values2
+            else:
+                result[key2] += values2
+        return result
+
+
 
     def cnv_call_population(self) -> None:
         """
@@ -187,6 +210,7 @@ class SpectrePopulation(object):
         :return: True if candidates are reciprocal overlapping with a certain overlap.
         """
         overlap = min(cnv1.end, cnv2.end) - max(cnv1.start, cnv2.start)
+        # if the overlap is negative the CNVs do not overlap
         if overlap <= 0:
             return False
         cnv_reciprocal_overlap = overlap / min(cnv1.size, cnv2.size)
@@ -211,6 +235,18 @@ class SpectrePopulation(object):
         :return: True if the copy number type matches.
         """
         return cnv1.type == cnv2.type
+
+    @staticmethod
+    def candidate_similar_size(cnv1: CNVCandidate, cnv2: CNVCandidate, differ_ratio: float) -> bool:
+        """
+        Checking if two CNV candidates have a similar size. The size of the CNVs is divided by the maximum size of the
+        two CNVs.
+        :param cnv1: CNV candidate 1
+        :param cnv2: CNV candidate 2
+        :param similarity_ratio: percentage of similarity
+        :return: True if the size of the CNVs is similar.
+        """
+        return abs(cnv1.size - cnv2.size) / max(cnv1.size, cnv2.size) <= differ_ratio
 
     def call_cnv_final_candidates(self) -> None:
         """
@@ -241,18 +277,21 @@ class SpectrePopulation(object):
                                     continue
                                 else:
                                     final_chr_pos_cn.add(f"{sample1.chromosome}{sample1.start}{sample1.cn_status}")
-
+                                differ_ratio = 1 - self.reciprocal_overlap
+                                is_similar_size = self.candidate_similar_size(cnv1=sample1, cnv2=sample2,
+                                                                              differ_ratio=differ_ratio)
                                 is_overlapping = self.candidate_overlapping_reciprocal(sample1, sample2,
                                                                                        self.reciprocal_overlap)
                                 is_same_cn = self.candidate_same_cn(sample1, sample2)
                                 is_same_cn_type = self.candidate_same_cn_type(sample1, sample2)
-                                if is_overlapping and is_same_cn and is_same_cn_type:
+                                if is_overlapping and is_same_cn and is_same_cn_type and is_similar_size:
 
-                                    # check if all keys are available in sampel1
+                                    # check if all keys are available in sample1
                                     if sample1.support_cnv_calls.keys() != self.final_candidates.keys():
                                         for key in self.final_candidates.keys():
                                             if key not in sample1.support_cnv_calls.keys():
                                                 sample1.support_cnv_calls[key] = set()
+                                        # sort dictionary by key
                                         sample1.support_cnv_calls = dict(sorted(sample1.support_cnv_calls.items()))
 
                                     # add sample2 to the support cnvs in sample1
@@ -289,7 +328,8 @@ class SpectrePopulation(object):
                     for chrom_key, candidates in value.items():
                         if chrom_key != variant.chromosome:
                             continue
-                        self.logger.info(f"Final variant:{variant_key}:{variant_cnt + 1}/{variant_len} vs. raw:{candidate_cnt + 1}/{raw_candidate_len}")
+                        self.logger.info(
+                            f"Final variant:{variant_key}:{variant_cnt + 1}/{variant_len} vs. raw:{candidate_cnt + 1}/{raw_candidate_len}")
                         for candidate in candidates:
                             if variant.sample_origin != candidate.sample_origin:
                                 # qualification checks
@@ -311,8 +351,10 @@ class SpectrePopulation(object):
         self.logger.info(f"Starting population mode with samples: {', '.join(list(self.final_candidates.keys()))}")
         # generating union table of final overlaps
         self.call_cnv_final_candidates()
-        # look up if all missing fields are covered by any raw cnv call
-        self.cnv_lookup_in_raw_candidates()
+        if self.discard_quality_control:
+            self.logger.info("Quality control is disabled. Searching also in raw CNVs for supporting CNVs.")
+            # look up if all missing fields are covered by any raw cnv call
+            self.cnv_lookup_in_raw_candidates()
         # Writing results to disk
         output_file = f"{self.output_dir}/population_mode_{self.sample_id}.vcf.gz"
         self.logger.info(f"Writing population VCF @: {output_file}")

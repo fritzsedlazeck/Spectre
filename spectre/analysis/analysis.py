@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -61,6 +62,7 @@ class CNVAnalysis(object):
         self.cnv_metrics = None
         # snv data
         self.snv_derived_cn_neutral = None
+        self.snv_loh_raw = None
         self.snv_loh = None
         self.merged_candidates = None
         # output
@@ -79,6 +81,23 @@ class CNVAnalysis(object):
         # TODO
         self.output_directory = spectre_args.out_dir
 
+    def pre_calculation_check(self):
+        min_cnv_len_check_smaller_threshold = False
+        min_cnv_len_greater_then_minimum = False
+        # check if min-cnv-len is smaller than 100KB
+        if self.spectre_args.min_cnv_len <= self.min_chr_length:
+            self.logger.warning(f"Minimum CNV length is smaller then {int(self.min_chr_length)} base pairs")
+            self.logger.warning(f"Expect trouble!")
+            min_cnv_len_check_smaller_threshold = True
+
+        if self.spectre_args.min_cnv_len <= self.dist_min_overwrite:
+            self.logger.error(f"Minimum CNV length must be greater then {int(self.dist_min_overwrite)} base pairs")
+            min_cnv_len_greater_then_minimum = False
+        else:
+            min_cnv_len_greater_then_minimum = True
+
+        return min_cnv_len_check_smaller_threshold and min_cnv_len_greater_then_minimum
+
     # Data normalization
     def data_normalization(self):
         """
@@ -94,6 +113,11 @@ class CNVAnalysis(object):
         tmp_genome_wide_position_dict = {}
         # load coverage data per chromosome
         for reference_chromosome in self.genome_info["chromosomes"]:
+            # Check if the chromosome is in the coverage file
+            if reference_chromosome not in coverage_file_tabix.contigs:
+                self.logger.warning(f"NO coverage data found for chromosome {reference_chromosome}")
+                continue
+
             # init
             tmp_positions = []
             tmp_coverage = []
@@ -115,12 +139,22 @@ class CNVAnalysis(object):
                 fm = FastaRef()
                 self.metadata = fm.load_metadata(mdr_file_path=self.metadata_path,
                                                  blacklist_file_path=self.spectre_args.black_list,
-                                                 bin_size=self.bin_size)
+                                                 bin_size=int(self.bin_size))
+
+                if not self.pre_calculation_check():
+                    sys.exit(1)
+
             # remove n regions from coverage
             self.__remove_n_region_by_chromosome(reference_chromosome)
             # add coverage to the genome-wide coverage dict
             tmp_genome_wide_coverage_dict[reference_chromosome] = self.coverage
             tmp_genome_wide_position_dict[reference_chromosome] = self.positions
+        # abort if no coverage data was found across all chromosomes
+        if len(tmp_genome_wide_coverage_dict) == 0:
+            self.logger.error("No coverage data found for any chromosome in the reference sequence!")
+            self.logger.error("Please make sure that the the reference sequence and the coverage file have matching"
+                              " chromosome names.")
+            sys.exit(1)
 
         # Calculate the normalization statistics
         genome_wide_cov_values = [value for chrom_cov_values in tmp_genome_wide_coverage_dict.values() for value in
@@ -138,9 +172,12 @@ class CNVAnalysis(object):
         # check if the normalization value is within the expected range the range is plus minus 1 genome_std from the
         # normalization value
         if self.snv_derived_cn_neutral is not None:
-            if not (self.normalization_value - self.genome_std < self.snv_derived_cn_neutral["med"] < self.normalization_value + self.genome_std):
-                self.logger.warning(f'The median coverage value between the Mosdepth data and the SNV data are different!')
-                self.logger.warning(f'Coverage: Mosdepth: {self.normalization_value}X. SNV: {self.snv_derived_cn_neutral["med"]}X.')
+            if not (self.normalization_value - self.genome_std < self.snv_derived_cn_neutral[
+                "med"] < self.normalization_value + self.genome_std):
+                self.logger.warning(
+                    f'The median coverage value between the Mosdepth data and the SNV data are different!')
+                self.logger.warning(
+                    f'Coverage: Mosdepth: {self.normalization_value}X. SNV: {self.snv_derived_cn_neutral["med"]}X.')
                 self.logger.warning(f'Expect trouble!')
 
         # Apply normalization to the coverage data
@@ -755,9 +792,9 @@ class CNVAnalysis(object):
 
         # merge loh dict to  cnv calls dict
         if self.cnv_calls_list_af_filtered is not None:
-            loh_raw_cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(self.snv_loh)
+            loh_raw_cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(self.snv_loh_raw)
             loh_cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(
-                self.cnv_calls_list_af_filtered)
+                self.snv_loh)
 
         analysis_dict = {
             "metadata": {"source": "spectre", "spectre_version": "0.2.alpha", "bin_size": int(self.bin_size),

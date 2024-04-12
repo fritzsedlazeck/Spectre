@@ -13,11 +13,20 @@ The CNV output of Spectre is stored in three files, VCF, BED and .SPC which can 
 
 Furthermore, Spectre offers a population mode, which can be used to search for CNV support in multiple samples. 
 Compared to other tools, Spectre searches not only in the final CNVs but also in CNV candidates which did not qualify for the final output of Spectre.
-## Required programs (conda)
+## Install Spectre
+Tested on **Python** version: **3.11** and **3.10**
 
 Install Spectre with Pip:
 ```bash
 pip install spectre-cnv
+```
+Get the latest changes by building Spectre from source on your own and install it locally in your conda environment.
+```bash
+pip install build
+git clone https://github.com/fritzsedlazeck/Spectre.git
+cd ./Spectre
+python3 -m build
+pip install dist/spectre-cnv-<VERSION>.tar.gz # replace <VERSION> with e.g. 0.2.0
 ```
 
 Setup a conda environment for Spectre (copy and paste the following commands)
@@ -99,7 +108,9 @@ spectre CNVCaller \
 ```
 ### Run Spectre with multiple samples
 Run Spectre with multiple samples:
->INFO: This will start the population mode automatically.
+>INFO: This will start the population mode automatically. All provided settings will be applied to all samples.
+
+>NOTE: If population flag is not set, Spectre will run in single sample mode. Thus, calculating only CNVs for the first sample. 
 
 ```bash
 spectre.py CNVCaller \
@@ -107,6 +118,7 @@ spectre.py CNVCaller \
   --sample-id sampleid-1 sampleid-2 \
   --output-dir sampleid_output_directory_path/ \
   --reference reference.fasta.gz
+  --population
 ```
 
 ### Population mode
@@ -124,63 +136,71 @@ spectre population \
 
 ### Help
 ```
-Spectre:
+vcf_utils <command> [<args>]
+    Spectre:
         CNVCaller:
-            Required
+            [Required]
                 --coverage     Path to the coverage file from Mosdepth output. Expects the following files:
                                    <prefix>.regions.bed.gz
                                    <prefix>.regions.bed.gz.csi
-                               Can be one or more directories. Example:
+                               Can be one or more paths. However, providing multiple samples is only intended to
+                               work with the --population flag. Example:
                                     --coverage /path/md1.regions.gz /path/md2.regions.gz
-                --sample-id    Sample name/ID. Can be one or more ID. Example:
+                --sample-id    Sample name/ID. Can be one or more ID. However, providing multiple sample ids is only
+                               intended to work with the --population flag. Example:
                                     --sample-id id1 id2
                 --output-dir   Output directory
                 --reference    Reference sequence used for mapping (for N removal)
-            Optional, if missing it will be created
-                --metadata     Metadata file for Ns removal
-            Optional
+            [Optional, if missing it will be created]
+                --metadata     Metadata file for Ns removal (this will speed up Spectre massively if provided)
+                --n-size       Required amount of consecutive Ns to be considered an NRegion 
+                               in the reference sequence (Default = 5)
+
+            [Optional]
                 --blacklist    Blacklist in bed format for sites that will be ignored (Default = "")
-                --only-chr     Comma separated list of chromosomes to use
+                --only-chr     Comma separated list of chromosomes to use (e.g. chr1,chr2,chr3)
                 --ploidy       Set the ploidy for the analysis, useful for sex chromosomes (Default = 2)
                 --ploidy-chr   Comma separated list of key:value-pairs for individual chromosome ploidy control
                                (e.g. chrX:2,chrY:1) If chromosome is not specified, the default ploidy will be used.
-                --snv          VCF file containing the SNV for the same sample CNV want to be called
                 --snfj         Breakpoints from from Sniffle which has been converted from the SNF to the SNFJ format.
-                --n-size       Length of consecutive Ns (Default = 5)
                 --min-cnv-len  Minimum length of CNV (Default 100kb)
+                --snv          VCF file containing the SNV for the same sample CNV want to be called
                 --cancer       Set this flag if the sample is cancer (Default = False)
-                --population   Runs the population mode on all provided samples
+                --population   Runs the population mode on all provided samples. It will apply all the provided
+                               configurations to all samples.
                 --threads      Amount of threads (This will boost performance if multiple samples are provided)
 
-                Coverage
+            [Optional, Coverage]
                 --sample-coverage-overwrite     Overwrites the calculated sample coverage, which is used to normalize
                                                 the coverage. e.g. a value of 30 equals to 30X coverage.
                 --disable-max-coverage          Disables the maximum coverage check. This will allow to call CNVs
 
-                LoH (requires --snv)
+            [Optional, LoH (requires --snv)]
                 --loh-min-snv-perkb             Minimum number of SNVs per kilobase for an LoH region (default=5)
                 --loh-min-snv-total             Minimum number of SNVs total for an LoH region (default=100)
                 --loh-min-region-size           Minimum size of a region for a LoH region (default=100000)
 
-
         RemoveNs:
-            Required
+            [Required]
                 --reference    Reference genome used for mapping
                 --output-dir   Output dir
                 --output-file  Output file for results
-                --bin-size     Bin/Window size (same as Mosdepth)
-            Optional
-                --blacklist    Blacklist in bed format for sites that will be ignored (Default = "")
-                --n-size       Length of consecutive Ns (Default = 5)
-                --save-only    Will only save the metadata file and not show the results in screen (Default = False)
+            [Optional]
+                --n-size       Required amount of consecutive Ns to be considered an NRegion 
+                               in the reference sequence (Default = 5)
+                --save-only    Will only save the metadata file and not show the results on screen (Default = False)
 
         Population:
-            Required
-                --candidates   At least 2 candidate files (.spc or .vcf) which should be taken into consideration for the population mode.
+            [Required]
+                --candidates   At least 2 .spc sample files which should be used in the population mode.
                 --sample-id    Name of the output file
                 --output-dir   Output directory
-            Optional
-                --reference    Reference sequence (Required if VCF files are used!)
+            [Optional]
+                --reference    Reference sequence
+                --reciprocal-overlap        Minimum reciprocal overlap for supporting CNVs [0.0 - 1.0] (Default = 0.8)
+                --disable-quality-filter    Disables the quality filter for the population mode. Spectre will also
+                                            search for supporting CNVs in the .SPC files, which have not been reported
+                                            as final CNVs in the VCF and BED file.
         Version:
             version    Shows current version/build
 ```

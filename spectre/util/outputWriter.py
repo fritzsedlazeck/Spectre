@@ -112,7 +112,7 @@ class VCFOutput(object):
         # Add Format section
         vcf_header += ['##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
                        '##FORMAT=<ID=HO,Number=2,Type=Float,Description="Homozygosity proportion">',
-                       '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">',
+                       '##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">',
                        '##FORMAT=<ID=DP,Number=2,Type=Float,Description="Read depth">',
                        '##FORMAT=<ID=ID,Number=1,Type=String,Description="Population ID of supporting CNV calls">'
                        ]
@@ -173,18 +173,26 @@ class VCFOutput(object):
                             # sample_id =""
                             for candidate in list(sample_value):
                                 ids.append(candidate.id)
-                                scores.append(candidate.statistics['z-score']['sample_score'])
+                                scores.append(np.float16(candidate.statistics['z-score']['sample_score']))
                                 gts.append(candidate.gt)
                                 # check if median_raw_cov exists
                                 if candidate.median_raw_cov:
                                     dps.append(candidate.median_raw_cov)
                             gt = Counter(gts).most_common(1)[0][0]
-                            score = np.mean(scores)
-                            dp = np.mean(dps)
-                            vcf_line.sample_format_data[sample_key] = [gt, "0.0", int(score),round(dp,2), ",".join(ids)]
+                            # check if scores or dps contains only nan values
+                            if all(np.isnan(x) for x in scores):
+                                score = np.nan
+                            else:
+                                score = np.nanmean(scores)
+
+                            if all(np.isnan(x) for x in dps):
+                                dp = np.nan
+                            else:
+                                dp = np.nanmean(dps)
+                            vcf_line.sample_format_data[sample_key] = [gt, "0.0", score,round(dp,2), ",".join(ids)]
                             vcf_line.supp_vec[sample_key] = 1
                         else:
-                            vcf_line.sample_format_data[sample_key] = ["0/0", "0.0", 0, 0.0,"NULL"]
+                            vcf_line.sample_format_data[sample_key] = ["./.", "0.0", 0, 0.0,"NULL"]
                     # add support vector only if population mode is active
                     vcf_line.INFO += ";SUPP_VEC=" + "".join([str(s) for s in vcf_line.supp_vec.values()])
                 vcf_lines.append(vcf_line.format_vcf_line())
@@ -242,7 +250,6 @@ class IntermediateFile(object):
             tmp_candidates_dict[key] = tmp_candidates
             for candidate in candidates:
                 tmp_dict = dict(candidate.__dict__)
-                tmp_dict = {k: v for k, v in tmp_dict.items() if v}
                 for key, value in tmp_dict.items():
                     if isinstance(value, set):
                         tmp_dict[key] = list(value)

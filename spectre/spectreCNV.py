@@ -54,6 +54,7 @@ class SpectreCNV:
         self.get_coverage_dir_file(coverage_filepath)
         return coverage_filepath
 
+
     # MAIN analysis pipeline incluide CNV and SNV analysis (CN neutral and LoH)
     def cnv_call(self):
         # SNV analysis first, if SNV data exisist use it to get the CN neutral
@@ -110,7 +111,7 @@ class SpectreCNV:
             self.logger.info("Starting LOH")
             self.snv_analysis.loh(self.cnv_analysis.existing_cnv_ids)
             self.logger.info("Saving final LOH calls")
-            self.cnv_analysis.snv_loh = self.snv_analysis.loh_pass_only()
+            self.cnv_analysis.snv_loh, self.cnv_analysis.snv_loh_raw = self.snv_analysis.loh_pass_and_non_pass()
 
         # Check for breakpoints
         if self.spectre_args.snfj != "":

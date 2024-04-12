@@ -42,7 +42,7 @@ class FastaRef:
         # assure abs paths
         reference = os.path.abspath(os.path.expanduser(self.metadata_args.reference))
         # DEL report_output_dir = os.path.abspath(os.path.expanduser(report_output_dir))
-        self.metadata_args.out_dir
+
         file_handler_fasta = open(reference, "r") if "gz" not in reference else gzip.open(reference, "rt")
         for raw_line in file_handler_fasta:
             line = raw_line.rstrip("\n")  # cut away the newline from line (\n)
@@ -87,6 +87,7 @@ class FastaRef:
                 i = 0
                 j = 0
                 chromosome_cnt = 0
+        file_handler_fasta.close()
 
         self.__nList = ref_dict
         self.__nTo = j
@@ -94,10 +95,8 @@ class FastaRef:
         self.__gCnt = g_cnt
         self.__aCnt = a_cnt
         self.__tCnt = t_cnt
+        # Get MDR statistics and write report
         self.__get_statistic_report()
-        # if not self.metadata_args.save_only:
-        #    return ref_dict
-        # return {}
 
     def extact_metadata_from_mdr(self, input_file: str, bin_size: int) -> dict:
         """
@@ -242,3 +241,4 @@ class FastaRef:
             os.makedirs(self.metadata_args.out_dir)
         with open(os.path.join(self.metadata_args.out_dir, self.output_file), "w") as file:
             file.writelines(self.static_report)
+

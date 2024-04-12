@@ -128,10 +128,11 @@ class SNVAnalysis(object):
             self.cn_neutral_coverage_stdev = np.nanstd(self.perfect_het_depth)
 
     def het_dump(self):
-        het_dump_file = gzip.open(f'{self.spectre_args.out_dir}/debug/het_dump.txt.gz', 'wt')
-        for het in self.perfect_het_depth:
-            het_dump_file.write(f'{het}\n')
-        het_dump_file.close()
+        if self.spectre_args.as_dev:
+            het_dump_file = gzip.open(f'{self.spectre_args.out_dir}/debug/het_dump.txt.gz', 'wt')
+            for het in self.perfect_het_depth:
+                het_dump_file.write(f'{het}\n')
+            het_dump_file.close()
 
     def het_clean(self):
         # remove top 2% coverage
@@ -506,34 +507,41 @@ class SNVAnalysis(object):
         # -------------------- #
 
     def loh_dump(self, version=""):
-        dump_file = f'{self.spectre_args.out_dir}/debug/loh_dump{version}.tsv'
-        dump_file_bgz = f'{self.spectre_args.out_dir}/debug/loh_dump{version}.tsv.gz'
-        loh_dump_file = open(dump_file, 'w')
-        for lohc in self.loh_candidate_list:
-            loh_dump_file.write(f'{lohc.print(self.cn_neutral_coverage_med, self.ploidy)}\t' \
-                                f'{lohc.filter}\t{lohc.het_score}\t{np.round(lohc.gt_alt_prop, 3)}\n')
-        loh_dump_file.close()
-        pysam.tabix_compress(filename_in=dump_file, filename_out=dump_file_bgz, force=True)
-        pysam.tabix_index(filename=dump_file_bgz, force=True, preset="bed")
-        if os.path.isfile(dump_file_bgz) and os.stat(dump_file_bgz).st_size != 0:
-            os.remove(dump_file)
+        if self.spectre_args.as_dev:
+            dump_file = f'{self.spectre_args.out_dir}/debug/loh_dump{version}.tsv'
+            dump_file_bgz = f'{self.spectre_args.out_dir}/debug/loh_dump{version}.tsv.gz'
+            loh_dump_file = open(dump_file, 'w')
+            for lohc in self.loh_candidate_list:
+                loh_dump_file.write(f'{lohc.print(self.cn_neutral_coverage_med, self.ploidy)}\t' \
+                                    f'{lohc.filter}\t{lohc.het_score}\t{np.round(lohc.gt_alt_prop, 3)}\n')
+            loh_dump_file.close()
+            pysam.tabix_compress(filename_in=dump_file, filename_out=dump_file_bgz, force=True)
+            pysam.tabix_index(filename=dump_file_bgz, force=True, preset="bed")
+            if os.path.isfile(dump_file_bgz) and os.stat(dump_file_bgz).st_size != 0:
+                os.remove(dump_file)
 
     def loh_report(self):
         for lohc in self.loh_candidate_list:
             if lohc.loh_pass:
                 self.logger.debug(lohc.print(self.cn_neutral_coverage_med, self.ploidy))
 
-    def loh_pass_only(self):
+    def loh_pass_and_non_pass(self):
         pass_only = {}
+        fail_only = {}
         for chro in self.spectre_args.only_chr_list:
             if chro not in pass_only:
                 pass_only[chro] = []
+            if chro not in fail_only:
+                fail_only[chro] = []
         for lohc in self.loh_candidate_list:
             if lohc.loh_pass:
                 pass_only[lohc.chromosome].append(lohc)
+            else:
+                fail_only[lohc.chromosome].append(lohc)
         for chro in pass_only:
             self.logger.debug(f'LOH candidates pass {chro}:  {len(pass_only[chro])}')
-        return pass_only
+        return pass_only, fail_only
+
 
     def loh(self, existing_cnv_ids):
         #  > LoH candidates (quick)

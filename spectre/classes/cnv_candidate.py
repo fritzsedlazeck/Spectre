@@ -2,7 +2,7 @@ import numpy as np
 
 
 class CNVCandidate(object):
-    def __init__(self, sample_origin="",bin_size=1000):
+    def __init__(self, sample_origin="", bin_size=1000):
         self.chromosome = ""
         self.start = 0
         self.end = 0
@@ -32,7 +32,7 @@ class CNVCandidate(object):
         # SV support from SNFJ data
         self.sv_support = False
 
-    def push_candidates(self, chromosome, cnv_pos_cand_list, cnv_cov_cand_list, cnv_type ):
+    def push_candidates(self, chromosome, cnv_pos_cand_list, cnv_cov_cand_list, cnv_type):
         self.chromosome = chromosome
         self.pos = cnv_pos_cand_list
         self.start = int(self.pos[0])
@@ -65,7 +65,7 @@ class CNVCandidate(object):
         self.merged_sample_references.add(cnv_id)
         self.merged_sample_references |= cnv_merged_ids  # "|" joins sets
 
-    def add_scaffold_candidate(self, scaf_start:int, scaf_end:int, scaf_cov:list, scaf_pos:list):
+    def add_scaffold_candidate(self, scaf_start: int, scaf_end: int, scaf_cov: list, scaf_pos: list):
         # insert coverage and positions of scaffold into candidate between scaf_start and scaf_end in self.cov and self.pos
 
         # instert coverage
@@ -93,15 +93,6 @@ class CNVCandidate(object):
 
     def set_id(self, id: str):
         self.id = f"Spectre.{self.type}.{id}"
-
-    def reinitialize_candidate_values(self) -> None:
-        """
-        Used after loading data from .spc file
-        :return: None
-        """
-        self.cn_status = self.set_copy_number_status(self.cov)[0]  # set copy number status
-        self.median_coverage_candidates_merged()  # median of normalized coverage
-        self.merged_sample_references = set(self.merged_sample_references)  # convert list to set
 
     @staticmethod
     def set_copy_number_status(candidate_coverage):
