@@ -67,11 +67,12 @@ class VCFLine(object):
 
 
 class VCFOutput(object):
-    def __init__(self, output_file, genome_info):
+    def __init__(self, output_file, genome_info, sv_support: bool = False):
         self.supp_vec = {}
         self.output_vcf = output_file
         self.population_sample_ids = []
         self.genome_info = genome_info
+        self.sv_support = sv_support
         # example {'chromosomes': ['chr6'], 'chr_lengths': {'chr6': 170805979}}
 
     @staticmethod
@@ -105,7 +106,8 @@ class VCFOutput(object):
                        '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Length of the SV">',
                        '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of copy number variant">',
                        '##INFO=<ID=CN,Number=1,Type=Integer,Description="Estimated copy number status">',
-                       '##INFO=<ID=SVSUPPORT,Number=1,Type=String,Description="SV support">']
+                       '##INFO=<ID=SVSUPPORT,Number=1,Type=String,Description="Indicator if a SV support was found in a provided SNFJ file">',
+                       ]
         if population_mode:
             vcf_header += ['##INFO=<ID=SUPP_VEC,Number=1,Type=String,Description="Support vector">']
 
@@ -151,14 +153,15 @@ class VCFOutput(object):
                 vcf_line.QUAL = str(each_candidate.quality)
                 vcf_line.INFO = f"END={each_candidate.end};SVLEN={each_candidate.size};SVTYPE={each_candidate.type};" \
                                 f"CN={each_candidate.cn_status};"
-                vcf_line.INFO += f"SVSUPPORT={'TRUE' if each_candidate.sv_support else 'FALSE'};"
+                if self.sv_support:
+                    vcf_line.INFO += f"SVSUPPORT={'TRUE' if each_candidate.sv_support else 'FALSE'};"
 
                 # checking if any other CNV through merging supported the given CNV
                 vcf_line.supp_vec = self.supp_vec.copy()
                 if not each_candidate.support_cnv_calls:
                     vcf_line.format_data = [each_candidate.gt, f'{round(each_candidate.het_score, 2)}',
                                             f"{int(each_candidate.statistics['z-score']['sample_score'])}",
-                                            f'{round(each_candidate.median_raw_cov,2)}']
+                                            f'{round(each_candidate.median_raw_cov, 2)}']
                 else:
                     vcf_line.format_data = []
                     vcf_line.FORMAT += ":ID"  # ADD ID tag in format as everything that is following are IDs
@@ -169,7 +172,7 @@ class VCFOutput(object):
                             ids = []
                             scores = []
                             gts = []
-                            dps = [] # raw read depth
+                            dps = []  # raw read depth
                             # sample_id =""
                             for candidate in list(sample_value):
                                 ids.append(candidate.id)
@@ -189,10 +192,10 @@ class VCFOutput(object):
                                 dp = np.nan
                             else:
                                 dp = np.nanmean(dps)
-                            vcf_line.sample_format_data[sample_key] = [gt, "0.0", score,round(dp,2), ",".join(ids)]
+                            vcf_line.sample_format_data[sample_key] = [gt, "0.0", score, round(dp, 2), ",".join(ids)]
                             vcf_line.supp_vec[sample_key] = 1
                         else:
-                            vcf_line.sample_format_data[sample_key] = ["./.", "0.0", 0, 0.0,"NULL"]
+                            vcf_line.sample_format_data[sample_key] = ["./.", "0.0", 0, 0.0, "NULL"]
                     # add support vector only if population mode is active
                     vcf_line.INFO += ";SUPP_VEC=" + "".join([str(s) for s in vcf_line.supp_vec.values()])
                 vcf_lines.append(vcf_line.format_vcf_line())
@@ -226,10 +229,11 @@ class VCFOutput(object):
 
         # clean up
         if os.path.isfile(self.output_vcf) and os.stat(self.output_vcf).st_size != 0:
-            os.remove(tmp_out) # remove the original unsorted vcf
+            os.remove(tmp_out)  # remove the original unsorted vcf
             # sorting file
             if os.path.exists(tmp_out + ".sort.tmp"):
                 os.remove(tmp_out + ".sort.tmp")
+
 
 class IntermediateFile(object):
     def __init__(self, output_dir: str, as_dev=False):

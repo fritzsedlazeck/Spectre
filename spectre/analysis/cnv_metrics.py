@@ -449,7 +449,7 @@ class CNVMetrics(object):
                 dup_threshold = self.ploidy + 1
                 self.logger.warning(f"Using fallback to threshold of: {dup_threshold}")
         return del_threshold, dup_threshold
-    def evaluate_cnvs(self, cnv_calls=None, refined_cnvs: bool = False) -> dict:
+    def evaluate_cnvs(self, refined_cnvs: bool = False) -> dict:
         """
         Evaluating all submitted CNV calls, by applying statistical tests. Optionally, plotting the location of the CNVs
         on the global coverage samples per chr.
@@ -483,31 +483,31 @@ class CNVMetrics(object):
                                              "pvalue": cnv_metrics_Z["pvalue"],
                                              "sample_score": cnv_metrics_Z["sample_score"]}
 
-                if self.as_dev and False:  # BUG line 385
-                    if not np.isnan(cnv_metrics_Z["cnv_call_mean"]):
-
-                        # pre check --> avoide div by 0
-                        if cnv_metrics_Z["cnv_call_mean"] == 0:
-                            x_index = 0
-                        else:
-                            if not np.isinf(cnv_metrics_Z["cnv_call_mean"]):
-                                x_index = int(cnv_metrics_Z["cnv_call_mean"] / width)
-                            else:
-                                x_index = int(x[-1])
-                        # check if out of bounds
-                        if x_index >= len(x):
-                            cnv_y = x[-1]
-                        else:
-                            cnv_y = int(x[x_index])
-                        cnv_y = int(cnv_y)
-                        annotation_endpoint_offset = 5 * (100 - x_index) * (
-                                1 - (cnv_y / 150)) + (max(x) / 10)  # np.random.randint(100,300)
-
-                        # Add
-                        ax.annotate(f"{cnv.id}", xy=(cnv_metrics_Z["cnv_call_mean"], cnv_y),
-                                    xytext=(cnv_metrics_Z["cnv_call_mean"], cnv_y + annotation_endpoint_offset),
-                                    rotation=60,
-                                    fontsize=12, arrowprops=dict(facecolor='green', shrink=0.05))
+                # if self.as_dev and False:  # BUG line 385
+                #     if not np.isnan(cnv_metrics_Z["cnv_call_mean"]):
+                #
+                #         # pre check --> avoide div by 0
+                #         if cnv_metrics_Z["cnv_call_mean"] == 0:
+                #             x_index = 0
+                #         else:
+                #             if not np.isinf(cnv_metrics_Z["cnv_call_mean"]):
+                #                 x_index = int(cnv_metrics_Z["cnv_call_mean"] / width)
+                #             else:
+                #                 x_index = int(x[-1])
+                #         # check if out of bounds
+                #         if x_index >= len(x):
+                #             cnv_y = x[-1]
+                #         else:
+                #             cnv_y = int(x[x_index])
+                #         cnv_y = int(cnv_y)
+                #         annotation_endpoint_offset = 5 * (100 - x_index) * (
+                #                 1 - (cnv_y / 150)) + (max(x) / 10)  # np.random.randint(100,300)
+                #
+                #         # Add
+                #         ax.annotate(f"{cnv.id}", xy=(cnv_metrics_Z["cnv_call_mean"], cnv_y),
+                #                     xytext=(cnv_metrics_Z["cnv_call_mean"], cnv_y + annotation_endpoint_offset),
+                #                     rotation=60,
+                #                     fontsize=12, arrowprops=dict(facecolor='green', shrink=0.05))
         if self.as_dev:
             self.logger.debug(f"Creating CNV distribution plot")
             fig, ax = plt.subplots()

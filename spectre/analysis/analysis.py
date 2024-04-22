@@ -67,6 +67,8 @@ class CNVAnalysis(object):
         self.merged_candidates = None
         # output
         self.chromosome_names_out = None
+        # SNFJ
+        self.snfj_breakpoints = False
         # DEV
         self.min_chr_length = 1e6
         self.dist_min_overwrite = 10000  # 10kb TODO
@@ -353,6 +355,7 @@ class CNVAnalysis(object):
     def check_snfj_breakpoints(self, snfspc_file):
         bp = Breakpoints(snfspc_file, self.as_dev)
         bp.correlate_cnvs_with_breakpoints(cnv_candidates=self.cnv_calls_list, bin_size=self.bin_size)
+        self.snfj_breakpoints = True
 
     # Candidate CNV merge by distance and CNV type
     def merge_candidates(self, candidates_cnv_list, chromosome_name):
@@ -742,7 +745,7 @@ class CNVAnalysis(object):
         # TODO add LoH if self.snv_loh is not None
         # TODO modify make_vcf
         output_vcf = os.path.join(os.path.join(self.output_directory, f'{method}{self.sample_id}.vcf.gz'))
-        vcf_output = outputWriter.VCFOutput(output_vcf, self.genome_info)
+        vcf_output = outputWriter.VCFOutput(output_vcf, self.genome_info, self.snfj_breakpoints)
         vcf_output.make_vcf(self.chromosome_names_out, self.merged_candidates, self.sample_id)
 
     # Plots
