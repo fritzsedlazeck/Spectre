@@ -1,0 +1,7 @@
+# directories
+github/
+build/
+dist/
+spectre-cnv/
+Spectre.egg-info/
+

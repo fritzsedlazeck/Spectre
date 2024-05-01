@@ -106,10 +106,14 @@ class VCFOutput(object):
                        '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Length of the SV">',
                        '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of copy number variant">',
                        '##INFO=<ID=CN,Number=1,Type=Integer,Description="Estimated copy number status">',
-                       '##INFO=<ID=SVSUPPORT,Number=1,Type=String,Description="Indicator if a SV support was found in a provided SNFJ file">',
+                       '##INFO=<ID=SVSUPPORT,Number=1,Type=String,Description="Indicator if a SV support was found in a provided SNFJ file">'
                        ]
         if population_mode:
-            vcf_header += ['##INFO=<ID=SUPP_VEC,Number=1,Type=String,Description="Support vector">']
+            vcf_header += [
+                '##INFO=<ID=SUPPVEC,Number=1,Type=String,Description="Support vector for population variants">',
+                '##INFO=<ID=POPMERGENR,Number=1,Type=Integer,Description="Number of CNVs that have been merged '
+                'into this variant in the Spectre population mode">'
+                ]
 
         # Add Format section
         vcf_header += ['##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
@@ -197,7 +201,9 @@ class VCFOutput(object):
                         else:
                             vcf_line.sample_format_data[sample_key] = ["./.", "0.0", 0, 0.0, "NULL"]
                     # add support vector only if population mode is active
-                    vcf_line.INFO += ";SUPP_VEC=" + "".join([str(s) for s in vcf_line.supp_vec.values()])
+                    vcf_line.INFO += ";SUPPVEC=" + "".join([str(s) for s in vcf_line.supp_vec.values()])
+                    # add merged candidate number if population mode is active
+                    vcf_line.INFO += f";POPMERGENR={each_candidate.get_number_of_merged_samples()}"
                 vcf_lines.append(vcf_line.format_vcf_line())
         return "\n".join(vcf_lines)
 

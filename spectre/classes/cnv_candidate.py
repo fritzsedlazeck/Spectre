@@ -31,6 +31,8 @@ class CNVCandidate(object):
         self.merged_sample_references = set()
         # SV support from SNFJ data
         self.sv_support = False
+        # superseded by this candidate
+        self.merged_sample = False  # if this candidate is a merged candidate and has been superseded by another CNV
 
     def push_candidates(self, chromosome, cnv_pos_cand_list, cnv_cov_cand_list, cnv_type):
         self.chromosome = chromosome
@@ -102,6 +104,15 @@ class CNVCandidate(object):
             # one for regular signal ... inf can not be a valid CN state
         # copy number state is given by integer type conversion of the float value median coverage, e.g. 1.51-> 1
         return [int(round(median_candidates_coverage, 0)), median_candidates_coverage]
+
+    def get_number_of_merged_samples(self) -> int:
+        x = 0
+        # count number of samples in self.support_cnv_calls which have True as a value for merged_sample
+        for sample in self.support_cnv_calls:
+            for cnv in self.support_cnv_calls[sample]:
+                if cnv.merged_sample:
+                    x += 1
+        return x
 
     # functions required to use this object as a key in a dictionary
     def __hash__(self):

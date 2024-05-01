@@ -149,7 +149,7 @@ def outside_spectre_worker(si: dict):
 class Spectre:
     def __init__(self, as_dev=False):
         # version
-        self.version = "0.2.0"
+        self.version = "0.2.1"
         # get a custom logger & set the logging level
         self.logger = logger.setup_log(__name__, as_dev)
 
@@ -387,7 +387,7 @@ class Spectre:
         # Population mode setup
         __spectre_population_worker = SpectrePopulation(sample_id=sample_ids,
                                                         output_dir=output_dir,
-                                                        reciprocal_overlap=0.2,
+                                                        reciprocal_overlap=0.8,
                                                         discard_quality_control=disable_quality_filter,
                                                         genome_info=self.genome, as_dev=as_dev)
         __spectre_population_worker.load_files(population_paths)  # Loading files for population mode
@@ -424,12 +424,11 @@ def get_arguments():
                 --ploidy-chr   Comma separated list of key:value-pairs for individual chromosome ploidy control
                                (e.g. chrX:2,chrY:1) If chromosome is not specified, the default ploidy will be used.
                 --snfj         Breakpoints from from Sniffle which has been converted from the SNF to the SNFJ format.
+                               SNFJ files can be generated using the program snf2json.
                 --min-cnv-len  Minimum length of CNV (Default 100kb)
                 --snv          VCF file containing the SNV for the same sample CNV want to be called
-                --cancer       Set this flag if the sample is cancer (Default = False)
-                --population   Runs the population mode on all provided samples. It will apply all the provided
-                               configurations to all samples.
-                --threads      Amount of threads (This will boost performance if multiple samples are provided)
+                --cancer       Set this flag if the sample is cancer (Default = False) This will disable some safety 
+                               checks, when determining the DEL and DUP thresholds. 
 
             [Optional, Coverage]
                 --sample-coverage-overwrite     Overwrites the calculated sample coverage, which is used to normalize
@@ -441,6 +440,9 @@ def get_arguments():
                 --loh-min-snv-total             Minimum number of SNVs total for an LoH region (default=100)
                 --loh-min-region-size           Minimum size of a region for a LoH region (default=100000)
 
+                --population   Runs the population mode on all provided samples. It will apply all the provided
+                               configurations as well as the default population mode values to all samples.
+                --threads      Amount of threads (This will boost performance if multiple samples are provided)
         RemoveNs:
             [Required]
                 --reference    Reference genome used for mapping
@@ -454,11 +456,14 @@ def get_arguments():
         Population:
             [Required]
                 --candidates   At least 2 .spc sample files which should be used in the population mode.
-                --sample-id    Name of the output file
-                --output-dir   Output directory
+                               (e.g. sample1.spc sample2.spc)
+                --sample-id    The name of the sample-id will be added accordingly at the output.
+                               (e.g. population_mode_<sample-id>.vcf.gz)
+                --output-dir   Path of the output directory
             [Optional]
                 --reference    Reference sequence
-                --reciprocal-overlap        Minimum reciprocal overlap for supporting CNVs [0.0 - 1.0] (Default = 0.8)
+                --reciprocal-overlap        Minimum reciprocal overlap for supporting variants (CNV or LOH) [0.0 - 1.0] 
+                                            (Default = 0.8)
                 --disable-quality-filter    Disables the quality filter for the population mode. Spectre will also
                                             search for supporting CNVs in the .SPC files, which have not been reported
                                             as final CNVs in the VCF and BED file.
@@ -598,8 +603,8 @@ def get_arguments():
     # Optional
     subparser_cnv_population.add_argument('-r', '--reference', type=str, required=False, dest='reference', default="",
                                           help='..., default = None')
-    subparser_cnv_caller.add_argument('-ro', '--reciprocal-overlap', type=float, required=False,
-                                      dest='reciprocal_overlap', default=0.8, help='..., default = 0.8')
+    subparser_cnv_population.add_argument('-ro', '--reciprocal-overlap', type=float, required=False,
+                                          dest='reciprocal_overlap', default=0.8, help='..., default = 0.8')
 
     subparser_cnv_population.add_argument('-dqf', '--disable-quality-filter', action='store_true', required=False,
                                           dest='disable_quality_filter', default=False,help='..., default = False')

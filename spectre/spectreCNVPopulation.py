@@ -3,6 +3,8 @@ import os
 import traceback
 import json
 
+import pandas as pd
+
 from spectre.util import logger
 from spectre.classes.loh_candidate import LoHCandidate
 from spectre.util.outputWriter import VCFOutput
@@ -19,6 +21,7 @@ class SpectrePopulation(object):
         self.final_candidates = {}  # Holds all CNVs calls that have been analyzed and filtered by Spectre
         self.raw_candidates = {}  # Holds all raw CNVs calls before any filtering was applied by Spectre
         self.cnv_call_list = {}  # Holds resulting cNV calls.
+        self.cnv_merged_call_list = {}  # Holds merged CNV calls
         self.genome_info = genome_info
         self.bin_size = 0  # binsize of all samples
         self.reciprocal_overlap = reciprocal_overlap  # the minimum position overlap to be considered a support CNV call
@@ -179,8 +182,6 @@ class SpectrePopulation(object):
                 result[key2] += values2
         return result
 
-
-
     def cnv_call_population(self) -> None:
         """
         Starts CNV population calling
@@ -213,8 +214,9 @@ class SpectrePopulation(object):
         # if the overlap is negative the CNVs do not overlap
         if overlap <= 0:
             return False
-        cnv_reciprocal_overlap = overlap / min(cnv1.size, cnv2.size)
-        return cnv_reciprocal_overlap >= reciprocal_overlap
+        cnv_reciprocal_overlap_1 = overlap / cnv1.size
+        cnv_reciprocal_overlap_2 = overlap / cnv2.size
+        return cnv_reciprocal_overlap_1 >= reciprocal_overlap and cnv_reciprocal_overlap_2 >= reciprocal_overlap
 
     @staticmethod
     def candidate_same_cn(cnv1: CNVCandidate, cnv2: CNVCandidate) -> bool:
@@ -243,70 +245,59 @@ class SpectrePopulation(object):
         two CNVs.
         :param cnv1: CNV candidate 1
         :param cnv2: CNV candidate 2
-        :param similarity_ratio: percentage of similarity
+        :param differ_ratio: percentage of similarity
         :return: True if the size of the CNVs is similar.
         """
         return abs(cnv1.size - cnv2.size) / max(cnv1.size, cnv2.size) <= differ_ratio
 
-    def call_cnv_final_candidates(self) -> None:
+    def search_for_supporting_candidates(self, candidates: dict) -> dict:
         """
-        Creating a structure which holds all overlapping CNVs of the final CNV candidates.
-        :return: None
+        Search for supporting CNVs in all samples. Qualifying CNVs must meet the requirements of the reciprocal overlap,
+         same CN status and same CN type.
+        :param candidates: dictionary of candidates
+        :return: dictionary of CNVs which are supported by other CNVs
         """
-        self.logger.info("Searching for overlapping CNVs in final candidates")
-        sample1_cnt = 0
-        sample2_cnt = 0
-        final_chr_pos_cn = set()
-        # everything against everything
-        for samples_key1, samples_values1 in self.final_candidates.items():
-            self.logger.info(
-                f"Checking final CNVs {samples_key1}: {sample1_cnt + 1}/{len(self.final_candidates.keys())}")
-            sample2_cnt = 0
-            for samples_key2, samples_values2 in self.final_candidates.items():
-                for sample_chrom1, sample_values1 in samples_values1.items():
-                    for sample_chrom2, sample_values2 in samples_values2.items():
-                        # self.logger.info(f"Checking {sample1_cnt}:{sample_chrom1}:{samples_key1} against {sample2_cnt}:{sample_chrom2}:{samples_key2}")
-                        # check for same chromosome
-                        if sample_chrom1 != sample_chrom2:
-                            continue
-                        # all individual samples against each other
-                        for sample1 in sample_values1:
-                            for sample2 in sample_values2:
-                                # check if chr, pos, cn are already in the list
-                                if f"{sample1.chromosome}{sample1.start}{sample1.cn_status}" in final_chr_pos_cn:
-                                    continue
-                                else:
-                                    final_chr_pos_cn.add(f"{sample1.chromosome}{sample1.start}{sample1.cn_status}")
-                                differ_ratio = 1 - self.reciprocal_overlap
-                                is_similar_size = self.candidate_similar_size(cnv1=sample1, cnv2=sample2,
-                                                                              differ_ratio=differ_ratio)
-                                is_overlapping = self.candidate_overlapping_reciprocal(sample1, sample2,
-                                                                                       self.reciprocal_overlap)
-                                is_same_cn = self.candidate_same_cn(sample1, sample2)
-                                is_same_cn_type = self.candidate_same_cn_type(sample1, sample2)
-                                if is_overlapping and is_same_cn and is_same_cn_type and is_similar_size:
-
-                                    # check if all keys are available in sample1
-                                    if sample1.support_cnv_calls.keys() != self.final_candidates.keys():
-                                        for key in self.final_candidates.keys():
-                                            if key not in sample1.support_cnv_calls.keys():
-                                                sample1.support_cnv_calls[key] = set()
-                                        # sort dictionary by key
-                                        sample1.support_cnv_calls = dict(sorted(sample1.support_cnv_calls.items()))
-
-                                    # add sample2 to the support cnvs in sample1
-                                    sample1.support_cnv_calls[samples_key2].add(sample2)
-
-                                    # check if chromosome exists in cnv_call_list
-                                    if sample_chrom1 not in self.cnv_call_list.keys():
-                                        self.cnv_call_list[sample_chrom1] = []  # create list for
-
-                                    # check if sample1 is in the list
-                                    if sample1 not in self.cnv_call_list[sample_chrom1]:
-                                        self.cnv_call_list[sample_chrom1].append(sample1)
-
-                    sample2_cnt += 1
-            sample1_cnt += 1
+        # 1) get names of all  samples from the candidates and generate a sorted dictionary
+        sample_dict = dict(sorted(candidates.items()))
+        total_sample_len = len(sample_dict.keys())
+        # 1.2) create a cnv_call_list and initialize it with all the chromosomes as keys and an empty set as value
+        cnv_call_list = dict([(chrom, set()) for chrom in self.genome_info["chromosomes"]])
+        # 2) walk through all samples
+        for chrom in self.genome_info["chromosomes"]:
+            self.logger.info(f"Searching for supporting CNVs in chromosome: {chrom}")
+            # 3) walk through all chromosomes
+            sample1_cnt = 0
+            for sample_origin_name, sample_candidates in sample_dict.items():
+                # 4) walk through all candidates
+                if chrom not in sample_candidates.keys():
+                    continue
+                for candidate1 in sample_candidates[chrom]:
+                    # 5) walk through all samples
+                    sample2_cnt = 0
+                    for sample_origin2_name, sample_candidates2 in sample_dict.items():
+                        # self.logger.info(
+                        #     f"Checking {sample_origin_name}:{sample1_cnt + 1}/{total_sample_len} vs. {sample_origin2_name}:{sample2_cnt + 1}/{total_sample_len}")
+                        # 6) walk through all candidates
+                        for candidate2 in sample_candidates2[chrom]:
+                            # 6.1) check if the same sample id
+                            if candidate1.id == candidate2.id:
+                                continue
+                            # 6.2) check if the same CN status
+                            if candidate1.cn_status != candidate2.cn_status:
+                                continue
+                            # 6.3) check if the same CN type
+                            if candidate1.type != candidate2.type:
+                                continue
+                            # 6.4) check if the candidates are overlapping
+                            if self.candidate_overlapping_reciprocal(candidate1, candidate2, self.reciprocal_overlap):
+                                # 7) Add to candidate1 at sample_origin2_name the candidate2
+                                candidate1.support_cnv_calls[sample_origin2_name].add(candidate2)
+                                # 8) Add candidate1 to the cnv_call_list
+                                cnv_call_list[chrom].add(candidate1)
+                        sample2_cnt += 1
+                sample1_cnt += 1
+        pass
+        return cnv_call_list
 
     def cnv_lookup_in_raw_candidates(self) -> None:
         """
@@ -343,14 +334,197 @@ class SpectrePopulation(object):
                     candidate_cnt += 1
             variant_cnt += 1
 
+    def convert_candidates_dict_to_dataframe(self, candidate_dict: dict):
+        df = pd.DataFrame(
+            columns=["sample_origin", "id", "chromosome", "start", "end", "size", "cn_status", "type", "chr_idx"])
+        for sample_origin, sample_candidates in candidate_dict.items():
+            df_sample_origin_tmp = pd.DataFrame(columns=df.columns)
+            for candidates in sample_candidates.values():
+                tmp_candidate_add_list = []
+                for candidate_idx, candidate in enumerate(candidates):
+                    tmp_candidate_add_list.append([candidate.sample_origin, candidate.id, candidate.chromosome,
+                                                   candidate.start, candidate.end, candidate.size, candidate.cn_status,
+                                                   candidate.type, candidate_idx])
+                # create a dataframe and concat it to df_sample_origin_tmp
+                df_sample_origin_tmp = pd.concat(
+                    [df_sample_origin_tmp, pd.DataFrame(tmp_candidate_add_list, columns=df.columns)])
+            # concat df_sample_origin_tmp to df
+            df = pd.concat([df, df_sample_origin_tmp])
+        df.reset_index(drop=True, inplace=True)
+        return df
+
+    def apply_similarity_merge(self):
+        n_merges = 2
+        n_merge_rounds = 1
+        while n_merges > 1:
+            self.logger.info(f"Starting merge round: {n_merge_rounds}")
+            n_merges = self.merge_similar_candidates()
+            n_merge_rounds += 1
+
+    def merge_similar_candidates(self):
+        """
+        Merging similar CNVs together. Similar CNVs are CNVs which have the same size, start and end position and the
+        same type. The CNVs are added to the base (first) CNV population_merge_candidate_list and removed from the final
+        CNV candidates list. Thus, the merged CNVs will no longer be used in the population mode.
+        :return:
+        """
+        # define wobble of start and end position which should be considered as the same starting point
+        wobble_position = 20 * self.bin_size
+        wobble_size = 4 * wobble_position
+        merge_idx = {}  # dictionary with the base index as key and the merge candidates as values
+        new_merge_idx = {}  # Key superseding index, value list of indices which are superseded,
+        # added to the index and removed from the final_candidates
+        # lookup dataframe with sample_origin, sample_id, chromosome, start, end, size, cn_status, type
+        # convert dictionary to dataframe
+        df_final_candidates = self.convert_candidates_dict_to_dataframe(self.final_candidates)
+        # 1) for each variant type -> avoid interacting of variant types: [DEL, DUP] vs LOH
+        for cn_type in df_final_candidates.type.unique():
+            df = df_final_candidates[df_final_candidates.type == cn_type]
+            # 2) for each chromosome
+            for chrom in df.chromosome.unique():
+                df_chrom = df[df.chromosome == chrom]
+                # 3) for each CN
+                for cn_status in df_chrom.cn_status.unique():
+                    df_chrom_cn = df_chrom[df_chrom.cn_status == cn_status]
+                    if len(df_chrom_cn) > 1:
+
+                        df_chrom_cn = df_chrom_cn.sort_values(by=["start"])
+                        df_chrom_cn.reset_index(drop=False, inplace=True)
+
+                        df_chrom_cn["start_base_df_idx"] = df_chrom_cn.apply(lambda x: set([x["index"]]), axis=1)
+                        df_chrom_cn["end_base_df_idx"] = df_chrom_cn.apply(lambda x: set([x["index"]]), axis=1)
+
+                        # 4) Check wobble states loop through all start_wobble, end_wobble and index values
+                        for row in df_chrom_cn.itertuples():
+                            # check in all df_chrom_cn rows if any of the start values is within the start value of the
+                            # row +/- wobble_position.
+                            start = row.start
+                            end = row.end
+                            base_df_idx = row.index
+                            # get all rows where the start is within the wobble position and add the base_df_idx to the
+                            # array stored in  start_base_df_idx.
+                            mask = (df_chrom_cn["start"].between(start - wobble_position, start + wobble_position))
+                            # append the base_df_idx to the array stored in  start_base_df_idx
+                            df_chrom_cn.loc[mask, "start_base_df_idx"] = df_chrom_cn.loc[
+                                mask, "start_base_df_idx"].apply(lambda x: x.union(set([base_df_idx])))
+                            # get all rows where the end is within the wobble position and add the base_df_idx to the
+                            # array stored in  end_base_df_idx
+                            mask = (df_chrom_cn["end"].between(end - wobble_position, end + wobble_position))
+                            # append the base_df_idx to the array stored in  end_base_df_idx
+                            df_chrom_cn.loc[mask, "end_base_df_idx"] = df_chrom_cn.loc[mask, "end_base_df_idx"].apply(
+                                lambda x: x.union(set([base_df_idx])))
+
+                        # 5) Determine is the start and end position are the same by intersecting the
+                        # start_base_df_idx and end_base_df_idx
+                        df_chrom_cn["same_pos"] = False
+                        df_idx_set = {}
+                        for row in df_chrom_cn.itertuples():
+                            start_idx_set = row.start_base_df_idx
+                            end_idx_set = row.end_base_df_idx
+                            overlapping_idx = tuple(start_idx_set.intersection(end_idx_set))
+                            if len(overlapping_idx) > 1:
+                                df_chrom_cn.at[row.Index, "same_pos"] = True
+                                # add overlapping_idx to df_idx_set the smallest index is the base index
+                                # get smallest index
+                                base_idx = min(overlapping_idx)
+                                # get all other indices
+                                superseded_idx = list(overlapping_idx)
+                                superseded_idx.remove(base_idx)
+                                df_idx_set[base_idx] = superseded_idx
+                        new_merge_idx |= df_idx_set  # merging the dictionaries
+
+        # 6) merge the CNVs
+        remove_candidate_list = set()
+        for base_idx, superseded_idx_list in new_merge_idx.items():
+            df_base_candidate = df_final_candidates.loc[base_idx]
+            base_candidate = self.final_candidates[df_base_candidate["sample_origin"]][df_base_candidate["chromosome"]][
+                df_base_candidate["chr_idx"]]
+            self.logger.debug(f"Collapsing CNVs to: {base_candidate.id}")
+            quality_list = [base_candidate.quality]
+            for idx in superseded_idx_list:
+                # merge the CNV
+                df_merge_candidate = df_final_candidates.loc[idx]
+                merge_candidate = \
+                    self.final_candidates[df_merge_candidate["sample_origin"]][df_merge_candidate["chromosome"]][
+                        df_merge_candidate["chr_idx"]]
+                merge_candidate.merged_sample = True  # Mark the variant as merged
+                self.logger.debug(f"Removing CNV: {merge_candidate.id}")
+                # add to the support list
+                # base_candidate.population_merge_candidate_list.append(merge_candidate)
+                base_candidate.support_cnv_calls[merge_candidate.sample_origin].add(merge_candidate)
+                # add candidates which should be removed
+                quality_list.append(merge_candidate.quality)
+                remove_candidate_list.add(merge_candidate)
+            # 6.1) calculate new quality by choosing the best quality
+            base_candidate.quality = max(quality_list)
+            # 6.2) add the base_candidate to the self.cnv_merged_call_list
+            if base_candidate.chromosome not in self.cnv_merged_call_list.keys():
+                self.cnv_merged_call_list[base_candidate.chromosome] = []
+            self.cnv_merged_call_list[base_candidate.chromosome].append(base_candidate)
+            pass
+
+        # 7) Remove all candidates which are in the remove_candidate_list
+        for candidate in remove_candidate_list:
+            self.final_candidates[candidate.sample_origin][candidate.chromosome].remove(candidate)
+        # self.logger.info(f"Removed {len(merge_idx)} similar CNVs")
+        self.logger.info(f"Merged {len(remove_candidate_list)} similar CNVs")
+        return len(new_merge_idx.keys())
+
+    def initialize_support_cnv_calls(self, candidates_dict: dict) -> dict:
+        """
+        Initialize the support CNV calls in the candidates dictionary.
+        :param candidates_dict: dictionary of candidates
+        :return: dictionary of candidates with initialized support CNV calls
+        """
+        sample_dict = dict(sorted(candidates_dict.items()))
+        for sample_origin, sample_candidates in candidates_dict.items():
+            for chrom, candidates in sample_candidates.items():
+                for candidate in candidates:
+                    candidate.support_cnv_calls = dict([(key, set()) for key in sample_dict.keys()])
+        return candidates_dict
+
+    def add_merged_candidates_to_support_list(self) -> None:
+        """
+        Add merged candidates to the support list of the candidate in the self.cnv_call_list. A merged candidate is only
+        added, if the candidate is not already in the list. If the candidate is already in the list, the supporting CNVs
+        from the merged candidate are added to the support list of the candidate in the self.cnv_call_list.
+        :return:
+        """
+        for chrom, candidates in self.cnv_merged_call_list.items():
+            for candidate in candidates:
+                # if the chromosome is in the cnv_call_list
+                if candidate.chromosome not in self.cnv_call_list.keys():
+                    self.cnv_call_list[candidate.chromosome] = []
+                # Candidate was not found in the list and will be added
+                if candidate not in self.cnv_call_list[candidate.chromosome]:
+                    self.cnv_call_list[candidate.chromosome].add(candidate)
+                    continue
+                # Found the same candidate in the list
+                # add the supporting CNVs to the candidate
+                for supporting_cnv in self.cnv_call_list[candidate.chromosome]:
+                    if supporting_cnv.id == candidate.id:
+                        for sample_origin, supporting_candidates in candidate.support_cnv_calls.items():
+                            supporting_cnv.support_cnv_calls[sample_origin] |= supporting_candidates
+                            pass
+
+
+
     def call_cnv(self) -> None:
         """
         Starts CNV calling with CNVs from multiple samples.
         :return: None
         """
+        # Initialize support CNV calls
+        self.final_candidates = self.initialize_support_cnv_calls(self.final_candidates)
+        self.logger.info("Merge similar variants together.")
+        self.apply_similarity_merge()
         self.logger.info(f"Starting population mode with samples: {', '.join(list(self.final_candidates.keys()))}")
         # generating union table of final overlaps
-        self.call_cnv_final_candidates()
+        # self.call_cnv_final_candidates()
+        self.cnv_call_list = self.search_for_supporting_candidates(self.final_candidates)
+        # Add merged candidates to the support list
+        self.add_merged_candidates_to_support_list()
+
         if self.discard_quality_control:
             self.logger.info("Quality control is disabled. Searching also in raw CNVs for supporting CNVs.")
             # look up if all missing fields are covered by any raw cnv call

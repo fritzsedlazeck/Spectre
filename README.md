@@ -26,7 +26,7 @@ pip install build
 git clone https://github.com/fritzsedlazeck/Spectre.git
 cd ./Spectre
 python3 -m build
-pip install dist/spectre-cnv-<VERSION>.tar.gz # replace <VERSION> with e.g. 0.2.0
+pip install dist/spectre_cnv-<VERSION>.tar.gz # replace <VERSION> with e.g. 0.2.0
 ```
 
 Setup a conda environment for Spectre (copy and paste the following commands)
@@ -74,6 +74,7 @@ Optional
 - **MDR** file (if not already generated, Spectre will do that for you. You can also use the MDR file for every sample which has been aligned to the same reference genome)
 - VCF file containing SNV
 - SNF data from Sniffles (if parsed through [snf2json](https://github.com/philippesanio/snf2json))
+
 
 ## Run Spectre
 ### MDR file
@@ -163,12 +164,11 @@ vcf_utils <command> [<args>]
                 --ploidy-chr   Comma separated list of key:value-pairs for individual chromosome ploidy control
                                (e.g. chrX:2,chrY:1) If chromosome is not specified, the default ploidy will be used.
                 --snfj         Breakpoints from from Sniffle which has been converted from the SNF to the SNFJ format.
+                               SNFJ files can be generated using the program snf2json.
                 --min-cnv-len  Minimum length of CNV (Default 100kb)
                 --snv          VCF file containing the SNV for the same sample CNV want to be called
-                --cancer       Set this flag if the sample is cancer (Default = False)
-                --population   Runs the population mode on all provided samples. It will apply all the provided
-                               configurations to all samples.
-                --threads      Amount of threads (This will boost performance if multiple samples are provided)
+                --cancer       Set this flag if the sample is cancer (Default = False) This will disable some safety 
+                               checks, when determining the DEL and DUP thresholds. 
 
             [Optional, Coverage]
                 --sample-coverage-overwrite     Overwrites the calculated sample coverage, which is used to normalize
@@ -180,6 +180,9 @@ vcf_utils <command> [<args>]
                 --loh-min-snv-total             Minimum number of SNVs total for an LoH region (default=100)
                 --loh-min-region-size           Minimum size of a region for a LoH region (default=100000)
 
+                --population   Runs the population mode on all provided samples. It will apply all the provided
+                               configurations as well as the default population mode values to all samples.
+                --threads      Amount of threads (This will boost performance if multiple samples are provided)
         RemoveNs:
             [Required]
                 --reference    Reference genome used for mapping
@@ -193,8 +196,10 @@ vcf_utils <command> [<args>]
         Population:
             [Required]
                 --candidates   At least 2 .spc sample files which should be used in the population mode.
-                --sample-id    Name of the output file
-                --output-dir   Output directory
+                               (e.g. sample1.spc sample2.spc)
+                --sample-id    The name of the sample-id will be added accordingly at the output.
+                               (e.g. population_mode_<sample-id>.vcf.gz)
+                --output-dir   Path of the output directory
             [Optional]
                 --reference    Reference sequence
                 --reciprocal-overlap        Minimum reciprocal overlap for supporting CNVs [0.0 - 1.0] (Default = 0.8)
