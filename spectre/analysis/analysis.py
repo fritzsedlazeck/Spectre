@@ -70,7 +70,7 @@ class CNVAnalysis(object):
         # SNFJ
         self.snfj_breakpoints = False
         # DEV
-        self.min_chr_length = 1e6
+        self.min_chr_length = 1e5  # 100kb
         self.dist_min_overwrite = 10000  # 10kb TODO
         self.max_std_outlier_rm = self.spectre_args.dev_max_std_outlier_rm  # 5
         self.mosdepth_cov_genome_chr_diff = self.spectre_args.dev_mosdepth_cov_genome_chr_diff  # 0.10  # 10%
@@ -523,8 +523,9 @@ class CNVAnalysis(object):
         offset = 0
 
         # Walk through candidates by index (idx)
-        for idx in range(len(merged_candidates) - 1):
-            current_cand = merged_candidates[idx]
+        idx = 0
+        while idx + offset < number_of_candidates:
+            current_cand = merged_candidates[idx+offset]
             early_stop = False
 
             # Walk through all following candidates (offset)
@@ -592,6 +593,7 @@ class CNVAnalysis(object):
                     # # Remove the slave candidate from the list.
                     remove_idx.append(remove_candidate)
                     offset += 1
+            idx += 1
 
         # remove the candidates that overlap
         for idx in range(len(merged_candidates)):
@@ -640,7 +642,7 @@ class CNVAnalysis(object):
             n_outside_ci = del_outside + dup_outside
             # check if more than 50% of the values are outside the confidence interval
             has_more_values_outside_of_normal_cov_space = n_outside_ci > len(
-                each_cand.cov) * 0.5  # reduce FP due to noise
+                each_cand.cov) * self.spectre_args.qc_noise_allow # reduce FP due to noise. Allow by default is 50%
 
             # if candidate coverage mean is outside the thresholds, keep it
             if not (del_threshold <= threshold <= dup_threshold) and has_more_values_outside_of_normal_cov_space:
@@ -798,6 +800,11 @@ class CNVAnalysis(object):
             loh_raw_cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(self.snv_loh_raw)
             loh_cnv_calls_list_dict = intermediate_output_writer.convert_candidates_to_dictionary(
                 self.snv_loh)
+
+        # check strict thresholds If None, they were not used due to the cancer mode
+        if self.cnv_metrics.strict_del_threshold is None:
+            self.cnv_metrics.strict_del_threshold = self.lower_2n_threshold
+            self.cnv_metrics.strict_dup_threshold = self.upper_2n_threshold
 
         analysis_dict = {
             "metadata": {"source": "spectre", "spectre_version": "0.2.alpha", "bin_size": int(self.bin_size),

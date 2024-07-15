@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import time
 
 sys.dont_write_bytecode = True
 import argparse
@@ -32,6 +33,7 @@ class SpectreCallParam(object):
         self.ploidy_chr_list = ""
         self.min_cnv_len = 1000000
         self.sample_coverage_overwrite = None
+        self.qc_noise_allow = 0.5
         self.call_from_console = False
         self.is_cancer = False
         # dev/debug + hidden params
@@ -67,6 +69,7 @@ class SpectreCallParam(object):
         self.ploidy_chr_list = user_args.ploidy_chr
         self.min_cnv_len = user_args.min_cnv_len
         self.sample_coverage_overwrite = user_args.sample_coverage_overwrite
+        self.qc_noise_allow = user_args.qc_noise_allow
         self.n_size = user_args.n_size
         self.threads = user_args.threads
         self.run_population_mode = user_args.run_population_mode
@@ -149,7 +152,7 @@ def outside_spectre_worker(si: dict):
 class Spectre:
     def __init__(self, as_dev=False):
         # version
-        self.version = "0.2.1"
+        self.version = "0.2.1-patch-july15"
         # get a custom logger & set the logging level
         self.logger = logger.setup_log(__name__, as_dev)
 
@@ -518,7 +521,7 @@ def get_arguments():
     subparser_cnv_caller.add_argument('-n', '--n-size', type=int, required=False, dest='n_size', default=5,
                                       help='..., default = 5')
     subparser_cnv_caller.add_argument('-mcl', '--min-cnv-len', type=int, required=False, dest='min_cnv_len',
-                                      default=1000000, help='..., default = 1000000')
+                                      default=100000, help='..., default = 100000')
     subparser_cnv_caller.add_argument('-t', '--threads', type=int, required=False, dest='threads', default=1,
                                       help='..., default = 1')
     subparser_cnv_caller.add_argument('-i', '--population', action='store_true', required=False,
@@ -532,7 +535,8 @@ def get_arguments():
 
     subparser_cnv_caller.add_argument('-a', '--cancer', action='store_true', required=False, dest='is_cancer',
                                       default=False, help='..., default = False')
-
+    subparser_cnv_caller.add_argument('-qcna', '--qc-noise-allow', type=float, required=False,
+                                      dest='qc_noise_allow', default=0.5, help='..., float. default = 0.5')
     # Loh
     subparser_cnv_caller.add_argument('-lohkb', '--loh-min-snv-perkb', type=int, required=False, default=10,
                                       dest='loh_min_snv_perkb', help='default = 10')
@@ -636,6 +640,8 @@ def main():
     main_logger.info(f"Spectre input: {command} {' '.join(sys.argv[2:])}")
     main_logger.debug(f'Debug output is enabled') if run_as_dev else None
     spectre_run = Spectre(run_as_dev)
+    # add timer
+    start_time = time.time()
     if command == "CNVCaller":
         # ARGS:  bin_size, coverage_file_bed, sample_id, output_dir, reference="", metadata="", ...
         spectre_run.spectre_args.set_params_from_args(spectre_args)
@@ -655,6 +661,8 @@ def main():
     else:
         print(spectre_help)
         pass
+    end_time = time.time() - start_time
+    main_logger.info(f"Execution time: {end_time:.2f} seconds")
     sys.exit(0)
 
 

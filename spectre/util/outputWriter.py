@@ -49,7 +49,7 @@ class VCFLine(object):
         self.QUAL = "."
         self.FILTER = "."
         self.INFO = "."
-        self.FORMAT = "GT:HO:GQ:DP"
+        self.FORMAT = "GT:HO:GQ:CD"
         self.format_data = []
         self.sample_format_data = {}
         self.supp_vec = {}
@@ -119,7 +119,7 @@ class VCFOutput(object):
         vcf_header += ['##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
                        '##FORMAT=<ID=HO,Number=2,Type=Float,Description="Homozygosity proportion">',
                        '##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">',
-                       '##FORMAT=<ID=DP,Number=2,Type=Float,Description="Read depth">',
+                       '##FORMAT=<ID=CD,Number=2,Type=Float,Description="Coverage read depth">',
                        '##FORMAT=<ID=ID,Number=1,Type=String,Description="Population ID of supporting CNV calls">'
                        ]
 
@@ -176,7 +176,7 @@ class VCFOutput(object):
                             ids = []
                             scores = []
                             gts = []
-                            dps = []  # raw read depth
+                            cds = []  # raw read depth
                             # sample_id =""
                             for candidate in list(sample_value):
                                 ids.append(candidate.id)
@@ -184,19 +184,19 @@ class VCFOutput(object):
                                 gts.append(candidate.gt)
                                 # check if median_raw_cov exists
                                 if candidate.median_raw_cov:
-                                    dps.append(candidate.median_raw_cov)
+                                    cds.append(candidate.median_raw_cov)
                             gt = Counter(gts).most_common(1)[0][0]
-                            # check if scores or dps contains only nan values
+                            # check if scores or cds contains only nan values
                             if all(np.isnan(x) for x in scores):
                                 score = np.nan
                             else:
                                 score = np.nanmean(scores)
 
-                            if all(np.isnan(x) for x in dps):
-                                dp = np.nan
+                            if all(np.isnan(x) for x in cds):
+                                cd = np.nan
                             else:
-                                dp = np.nanmean(dps)
-                            vcf_line.sample_format_data[sample_key] = [gt, "0.0", score, round(dp, 2), ",".join(ids)]
+                                cd = np.nanmean(cds)
+                            vcf_line.sample_format_data[sample_key] = [gt, "0.0", score, round(cd, 2), ",".join(ids)]
                             vcf_line.supp_vec[sample_key] = 1
                         else:
                             vcf_line.sample_format_data[sample_key] = ["./.", "0.0", 0, 0.0, "NULL"]
@@ -223,9 +223,10 @@ class VCFOutput(object):
         vcf_lines = self.vcf_result(chromosome_list, cnv_candidate_list)
         file_handler.write(f'{vcf_header}\n')
         file_handler.write(f'{vcf_sample_header}\n')
-        file_handler.write(f'{vcf_lines}\n')
+        if len(vcf_lines) > 0:
+            file_handler.write(f'{vcf_lines}\n')
         file_handler.close()
-        if "gz" in self.output_vcf and len(vcf_lines) > 0:
+        if "gz" in self.output_vcf: # and len(vcf_lines) > 0:
             # sort vcf file
             bcftools.sort(f"-o", tmp_out + ".sort.tmp", tmp_out, catch_stdout=False)
 
