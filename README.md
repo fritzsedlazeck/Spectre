@@ -60,7 +60,7 @@ Prerequisites:
 Extract the coverage data from a BAM using [Mosdepth](https://github.com/brentp/mosdepth).
 Example command:
 ```bash
-mosdepth -t 8 -x -b 1000 -Q 20 -c X "${out_path}/${sample_id}" "${bam_path}"
+mosdepth -t 8 -x -b 1000 -Q 20 "${out_path}/${sample_id}" "${bam_path}"
 ```
 
 >IMPORTANT: We recommend to run **Mosdepth** with a **bin size of 1kb** and a **mapping quality of at least 20** (-Q 20), as Spectre is optimized for that. 
