@@ -240,7 +240,7 @@ class CNVAnalysis(object):
                 for idx in range(0, self.coverage.size, 1):
                     cov = self.coverage[idx]
                     if cov > self.genome_wide_mean + (self.max_std_outlier_rm * self.genome_std):
-                        self.coverage[idx] = np.NaN
+                        self.coverage[idx] = np.nan
             else:
                 self.logger.warning("Outlier max coverage is disabled, no outlier removal will be performed")
             nan_count = np.count_nonzero(np.isnan(self.coverage))
