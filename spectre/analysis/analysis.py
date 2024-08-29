@@ -1,5 +1,6 @@
 import os
 import sys
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -174,8 +175,7 @@ class CNVAnalysis(object):
         # check if the normalization value is within the expected range the range is plus minus 1 genome_std from the
         # normalization value
         if self.snv_derived_cn_neutral is not None:
-            if not (self.normalization_value - self.genome_std < self.snv_derived_cn_neutral[
-                "med"] < self.normalization_value + self.genome_std):
+            if not (self.normalization_value - self.genome_std < self.snv_derived_cn_neutral["med"] < self.normalization_value + self.genome_std):
                 self.logger.warning(
                     f'The median coverage value between the Mosdepth data and the SNV data are different!')
                 self.logger.warning(
@@ -188,7 +188,8 @@ class CNVAnalysis(object):
             self.positions = tmp_genome_wide_position_dict[reference_chromosome]
             cov_stats, norm_stats, cov_data = self.__normalization_and_statistics(reference_chromosome)
             if not cov_stats.empty:
-                self.coverage_analysis[reference_chromosome] = {"cov_data": cov_data, "statistics": cov_stats,
+                self.coverage_analysis[reference_chromosome] = {"cov_data": cov_data,
+                                                                "statistics": cov_stats,
                                                                 "norm_statistics": norm_stats}
 
         # Show which chromosomes did not match between the coverage file and the reference genome
@@ -334,8 +335,7 @@ class CNVAnalysis(object):
         self.logger.info("refining cnv calls")
         for each_chromosome in self.coverage_analysis.keys():
             candidates_cnv_list = self.cnv_calls_list[each_chromosome]
-            if self.as_dev:
-                self.dev_write_csv(each_chromosome)
+            # self.dev_write_csv(each_chromosome)
 
             self.logger.debug(f'total cnv candidates in {each_chromosome}: {len(candidates_cnv_list)} before merge')
             # 1) Merging CNV candidates
@@ -361,7 +361,7 @@ class CNVAnalysis(object):
     def merge_candidates(self, candidates_cnv_list, chromosome_name):
         merged_candidates = []
         if len(candidates_cnv_list) > 1:
-            dev_candidates_string = ""
+            # dev_candidates_string = ""
             merge_rounds = 1
             self.logger.debug(f'Current merge cycle {merge_rounds}')
             [n_merges, merged_candidates, _] = self.cnv_candidate_merge(candidates_cnv_list)
@@ -403,7 +403,7 @@ class CNVAnalysis(object):
         cnv_cand = cnv_candidates[idx]
         cov_diff_threshold = self.cov_diff_threshold  # selected by trial and error in simulations
         # dist => distance
-        dist_proportion = self.dist_proportion  # selected by trial and error, max distance proportion for merge
+        # dist_proportion = self.dist_proportion  # selected by trial and error, max distance proportion for merge
         dist_min_overwrite = self.dist_min_overwrite
         dev_candidates_string = [dev_candidates_merge(header=True)]
         # last candidate in the list was merged
@@ -658,8 +658,6 @@ class CNVAnalysis(object):
     def is_cnv_cov_outside_of_thresholds(self, candidate):
 
         result = not (self.cnv_metrics.del_threshold <= candidate.median_cov_norm <= self.cnv_metrics.dup_threshold)
-        # self.logger.debug(
-        #    f"Clean by coverage: {result} -> {candidate.chromosome}:{candidate.start}-{candidate.end} = c_norm_mean: {c_norm_mean}, c_norm_median: {c_norm_median}")
         return result
 
     # Fill in the gaps after merge
@@ -715,8 +713,6 @@ class CNVAnalysis(object):
         return cnv_list
 
     def cnv_loh_candidate_merge(self):
-        # autorun
-        # if self.snv_loh:
         if len(self.coverage_analysis) == 0:
             self.chromosome_names_out = self.spectre_args.only_chr_list
         else:
@@ -757,22 +753,55 @@ class CNVAnalysis(object):
             plot_cnv.file_prefix = f'{self.sample_id}_coverage_plot'
             plot_cnv.output_directory = self.output_directory
             chr_cov_data = self.coverage_analysis[each_chromosome]["cov_data"]
-            plot_cnv.plot_coverage(each_chromosome, {"pos": chr_cov_data.positions, "cov": chr_cov_data.raw_coverage})
+            plot_cnv.plot_coverage(each_chromosome, {"pos": chr_cov_data.positions,
+                                                     "cov": chr_cov_data.raw_coverage})
 
     def cnv_plot(self, methode=""):
+        lower_bound = self.lower_2n_threshold
+        upper_bound = self.upper_2n_threshold
+        output_directory = self.output_directory
+        file_prefix = methode + self.sample_id
+        ploidly = self.spectre_args.ploidy  # for diploid
+        coverage_analysis = self.coverage_analysis
+        cnv_calls_list = self.cnv_calls_list
+
+        plot_data_dir = os.path.join(self.output_directory, "plot_data")
+
+        os.makedirs(plot_data_dir, exist_ok=True)
+
         for each_chromosome in self.coverage_analysis.keys():
-            chr_cov_data = self.coverage_analysis[each_chromosome]["cov_data"]
-            cov_stats = self.coverage_analysis[each_chromosome]["norm_statistics"]
-            lower_bound = self.lower_2n_threshold
-            upper_bound = self.upper_2n_threshold
-            cov_stats.median = cov_stats.median * self.spectre_args.ploidy  # for diploid
+            # idx = 0;  each_chromosome = list(self.coverage_analysis.keys())[0]
+            chr_cov_data = coverage_analysis[each_chromosome]["cov_data"]
+            stats = coverage_analysis[each_chromosome]["norm_statistics"]
+            stats.median = stats.median * ploidly
+
             new_plot_device = CNVPlot()
-            new_plot_device.output_directory = self.output_directory
-            new_plot_device.file_prefix = methode + self.sample_id
-            new_plot_device.plot_coverage_cnv(each_chromosome, cov_stats,
-                                              {"pos": chr_cov_data.positions,
-                                               "cov": chr_cov_data.normalized_cov_ploidy},
-                                              self.cnv_calls_list[each_chromosome], [lower_bound, upper_bound])
+            new_plot_device.output_directory = output_directory
+            new_plot_device.file_prefix = file_prefix
+            coverage_x = chr_cov_data.positions
+            coverage_y = chr_cov_data.normalized_cov_ploidy
+
+            cnv_cand_list = cnv_calls_list[each_chromosome]
+            cand_tuples = [(_.start, _.end, _.type) for _ in cnv_cand_list]
+
+            to_pickle = dict(
+                current_chromosome = each_chromosome,
+                coverage_x = coverage_x,
+                coverage_y = coverage_y,
+                cand_tuples = cand_tuples,
+                average = stats.average,
+                bounds = [lower_bound, upper_bound]
+            )
+            pickle_fullfilename = os.path.join(plot_data_dir, f"{each_chromosome}.pkl")
+            with open(pickle_fullfilename, 'wb') as f:
+                pickle.dump(to_pickle, f)
+
+            new_plot_device.plot_coverage_cnv(current_chromosome=each_chromosome,
+                                              coverage_x=coverage_x,
+                                              coverage_y=coverage_y,
+                                              cand_tuples=cand_tuples,
+                                              average=stats.average,
+                                              bounds=[lower_bound, upper_bound])
 
     def get_cnv_metrics(self, refined_cnvs: bool = False):
         """
@@ -839,16 +868,14 @@ class CNVAnalysis(object):
         self.intermediate_candidates_file_location = output_path
         return output_path
 
-    # ############################################
-    # dev
     def dev_write_csv(self, each_chromosome):
-        csv_results = pd.DataFrame(
-            data={"position": self.coverage_analysis[each_chromosome]["cov_data"].positions,
-                  "mosdepth_cov": self.coverage_analysis[each_chromosome]["cov_data"].coverage_raw,
-                  "norm_cov": self.coverage_analysis[each_chromosome]["cov_data"].normalized_cov,
-                  "ploidy_cov": self.coverage_analysis[each_chromosome]["cov_data"].normalized_cov_ploidy
-                  }
-        )
+        data = {
+            "position": self.coverage_analysis[each_chromosome]["cov_data"].positions,
+            "mosdepth_cov": self.coverage_analysis[each_chromosome]["cov_data"].coverage_raw,
+            "norm_cov": self.coverage_analysis[each_chromosome]["cov_data"].normalized_cov,
+            "ploidy_cov": self.coverage_analysis[each_chromosome]["cov_data"].normalized_cov_ploidy
+        }
+        csv_results = pd.DataFrame(data=data)
         csv_results["chr"] = each_chromosome
         output_file = f"{self.debug_dir}/cnv_{self.sample_id}_byCoverage_chr{each_chromosome}.csv"
         self.logger.debug(f"Writing coverage to {output_file}")

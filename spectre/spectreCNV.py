@@ -1,5 +1,7 @@
 import os
 import sys
+import pickle
+
 import pysam
 from spectre.analysis.analysis import CNVAnalysis
 from spectre.analysis.snv_analysis import SNVAnalysis
@@ -29,10 +31,14 @@ class SpectreCNV:
         # SNV
         self.snv_analysis = None  # init, used later if appropiate
         # CNV
-        self.cnv_analysis = CNVAnalysis(coverage_file=self.mosdepth_coverage_file, outbed=self.out_bed,
-                                        outvcf=self.out_vcf, sample_id=self.sample_id,
-                                        spectre_args=self.spectre_args, metadata_ref=mdr_file_path,
-                                        genome_info=genome_info, debug_dir=debug_dir)
+        self.cnv_analysis = CNVAnalysis(coverage_file=self.mosdepth_coverage_file,
+                                        outbed=self.out_bed,
+                                        outvcf=self.out_vcf,
+                                        sample_id=self.sample_id,
+                                        spectre_args=self.spectre_args,
+                                        metadata_ref=mdr_file_path,
+                                        genome_info=genome_info,
+                                        debug_dir=debug_dir)
 
     def get_coverage_dir_file(self, coverage_filepath):
         # for each_dir in os.listdir(coverage_dir):
@@ -47,17 +53,15 @@ class SpectreCNV:
                     self.logger.error("Please index the coverage file manually (e.g. Tabix)")
                     sys.exit(1)
 
-
     def set_coverage_files(self, coverage_filepath):
         self.logger.info(
             f'Spectre calculating for: {str(coverage_filepath)}')  # and bin size: {self.spectre_args.bin_size}')
         self.get_coverage_dir_file(coverage_filepath)
         return coverage_filepath
 
-
-    # MAIN analysis pipeline incluide CNV and SNV analysis (CN neutral and LoH)
     def cnv_call(self):
-        # SNV analysis first, if SNV data exisist use it to get the CN neutral
+        # MAIN analysis pipeline incluide CNV and SNV analysis (CN neutral and LoH)
+        # SNV analysis first, if SNV data exists use it to get the CN neutral
         if self.spectre_args.snv != "":
             self.logger.info("Analysing CN neutral state from SNV data")
             self.logger.info("Cancer mode on") if self.spectre_args.is_cancer else None
@@ -127,6 +131,9 @@ class SpectreCNV:
         self.cnv_analysis.cnv_result_bed()
         self.logger.info("Results are writen to VCF file")
         self.cnv_analysis.cnv_result_vcf()
+
+        print("Dumping 'coverage_analysis' as pickle")
+
         self.logger.info("Result plot in progress")
         self.cnv_analysis.cnv_plot()
         # End

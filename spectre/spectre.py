@@ -316,11 +316,14 @@ class Spectre:
         # Split for pop and single
         spectre_instructions = []
         for sample_id, coverage_dir in zip(self.spectre_args.sample_id, self.spectre_args.coverage_dir):
-            coverage_dir = os.path.abspath(os.path.expanduser(coverage_dir))
-            instructions = {"spectre_args": self.spectre_args, "coverage_filepath": self.spectre_args.coverage_dir[0],
+            # coverage_dir = os.path.abspath(os.path.expanduser(coverage_dir))
+            instructions = {"spectre_args": self.spectre_args,
+                            "coverage_filepath": self.spectre_args.coverage_dir[0],
                             "sample_id": sample_id,
-                            "mdr_file_path": self.mdr_file_path, "genome_info": self.genome.copy(),
-                            "debug_dir": self.debug_dir, "logger": self.logger
+                            "mdr_file_path": self.mdr_file_path,
+                            "genome_info": self.genome.copy(),
+                            "debug_dir": self.debug_dir,
+                            "logger": self.logger
                             }
             spectre_instructions.append(instructions.copy())
 
@@ -354,7 +357,8 @@ class Spectre:
                                       mdr_file_path=instruction_0["mdr_file_path"],
                                       coverage_filepath=instruction_0["coverage_filepath"],
                                       sample_id=instruction_0["sample_id"],
-                                      genome_info=instruction_0["genome_info"], debug_dir=instruction_0["debug_dir"])
+                                      genome_info=instruction_0["genome_info"],
+                                      debug_dir=instruction_0["debug_dir"])
 
             spectre_main.cnv_call()
 
