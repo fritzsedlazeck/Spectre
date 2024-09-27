@@ -78,20 +78,23 @@ Optional
 
 ## Run Spectre
 ### MDR file
-MDR files hold the information of N regions in the reference genome and restrict Spectre of using data from those regions. 
+MDR files hold information about N regions in the reference genome and restrict Spectre's use of data from those regions. 
 We are providing sample MDR files for the reference genomes GRCh37 and GRCh38.
 
-If not provided, Spectre will generate a MDR file for you, which can take some time. 
-Thus, we highly recommend to generate a MDR file for your reference genome before running Spectre on multiple samples which have been aligned to the same reference.
+Spectre will generate an MDR file for you if not provided, which can take some time. 
+Thus, we highly recommend generating an MDR file for your reference genome before running Spectre on multiple samples aligned to the same reference.
 
 
-Providing an MDR file will save you an substantial amount of time, as Spectre will not have to calculate the N regions for every sample.
+Providing an MDR file will save you a substantial amount of time, as Spectre will not have to calculate the N regions for every sample.
 
-Generagtion of MDR file can be with either the `RemoveNs` or `CNVCaller` command. In the latter case, the MDR (metadata.mdr) file will be saved in the output directory of the sample.
+The generation of the MDR file can be done with either the `RemoveNs` or `CNVCaller` command. In the latter case, the MDR (metadata. MDR) file will be saved in the sample's output directory.
+Running the `RemoveNs` will generate an MDR file under the name in the directory you specified.
 ```bash
 spectre RemoveNs \
   --reference reference.fasta.gz \
-  --output-dir output_directory_path/
+  --output-dir output_directory_path/ \
+  --output-file name_of_metadata_file.mdr
+  
 ```
 ### Blacklists
 The blacklist is a supplementary file to the MDR file. It contains regions which should be ignored by Spectre.
