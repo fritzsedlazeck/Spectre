@@ -31,7 +31,8 @@ class SpectreCallParam(object):
         self.only_chr_list = ""
         self.ploidy = 2
         self.ploidy_chr_list = ""
-        self.min_cnv_len = 1000000
+        self.min_cnv_len = 100000
+        self.min_chr_len = 1000000  # 1Mb
         self.sample_coverage_overwrite = None
         self.qc_noise_allow = 0.5
         self.call_from_console = False
@@ -68,6 +69,7 @@ class SpectreCallParam(object):
         self.ploidy = user_args.ploidy
         self.ploidy_chr_list = user_args.ploidy_chr
         self.min_cnv_len = user_args.min_cnv_len
+        self.min_chr_len = user_args.min_chr_len
         self.sample_coverage_overwrite = user_args.sample_coverage_overwrite
         self.qc_noise_allow = user_args.qc_noise_allow
         self.n_size = user_args.n_size
@@ -177,13 +179,15 @@ class Spectre:
         self.logger.info(f'Spectre version: {self.version}')
 
     def make_genome_info(self):
-        MIN_CHR_LEN = 1e6
         pysam_genome = pysam.FastaFile(self.spectre_args.reference)
         genome_info = {"chromosomes": [], "chr_lengths": {}}
         for chr_name, chr_len in zip(pysam_genome.references, pysam_genome.lengths):
-            if chr_len > MIN_CHR_LEN:
+            if chr_len > self.spectre_args.min_chr_len:
                 genome_info["chr_lengths"][chr_name] = chr_len
                 genome_info["chromosomes"].append(chr_name)
+            else:
+                self.logger.warning(
+                    f"Chromosome {chr_name} with {chr_len} bp is too short (min. {self.spectre_args.min_chr_len} bp) and will be ignored.")
         pysam_genome.close()
         self.logger.debug(f'genome: {genome_info["chromosomes"]}')
         self.genome = genome_info
@@ -429,6 +433,7 @@ def get_arguments():
                 --snfj         Breakpoints from from Sniffle which has been converted from the SNF to the SNFJ format.
                                SNFJ files can be generated using the program snf2json.
                 --min-cnv-len  Minimum length of CNV (Default 100kb)
+                --min-chr-len  Minimum length of chromosome to be included in the analysis (Default = 1Mbp)
                 --snv          VCF file containing the SNV for the same sample CNV want to be called
                 --cancer       Set this flag if the sample is cancer (Default = False) This will disable some safety 
                                checks, when determining the DEL and DUP thresholds. 
@@ -522,6 +527,8 @@ def get_arguments():
                                       help='..., default = 5')
     subparser_cnv_caller.add_argument('-mcl', '--min-cnv-len', type=int, required=False, dest='min_cnv_len',
                                       default=100000, help='..., default = 100000')
+    subparser_cnv_caller.add_argument('-mchl', '--min-chr-len', type=int, required=False, dest='min_chr_len',
+                                      default=1000000, help='..., default = 1Mbp')
     subparser_cnv_caller.add_argument('-t', '--threads', type=int, required=False, dest='threads', default=1,
                                       help='..., default = 1')
     subparser_cnv_caller.add_argument('-i', '--population', action='store_true', required=False,
